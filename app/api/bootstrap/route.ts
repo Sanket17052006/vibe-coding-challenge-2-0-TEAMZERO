@@ -8,7 +8,7 @@ function decorate(players: Player[], sessions: Session[], matches: Match[]) {
   return players.map((player) => {
     const playerSports = player.sports ?? [player.sport];
     const sportStats = playerSports.map((sport) => {
-      const held = sessions.filter((session) => session.status === "closed" && session.sport === sport && session.playerIds.includes(player.id));
+      const held = sessions.filter((session) => session.status === "closed" && session.sport === sport);
       const present = held.filter((session) => session.attendance.some((row) => row.playerId === player.id && row.status === "Present")).length;
       const played = matches.filter((match) => match.status === "played" && match.sport === sport && match.scores.some((score) => score.playerId === player.id));
       const attendance = held.length ? (present / held.length) * 100 : 0;

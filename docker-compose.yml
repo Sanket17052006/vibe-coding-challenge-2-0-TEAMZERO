@@ -1,0 +1,30 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3100:3000"
+    environment:
+      MONGODB_URI: mongodb://mongo:27017
+      MONGODB_DB: khelgrid_flow_test
+      # Local Compose-only value. Production uses the SESSION_SECRET set in Vercel.
+      SESSION_SECRET: local-docker-flow-test-secret-do-not-use-in-production
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+volumes:
+  mongo-data:

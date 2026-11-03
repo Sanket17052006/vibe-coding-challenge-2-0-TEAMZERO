@@ -12,7 +12,16 @@ export async function POST(request: NextRequest) {
     if (sports.some((sport) => !canManageSport(actor, sport))) return NextResponse.json({ error: "You can only manage players in sports assigned to you." }, { status: 403 });
     const player = await mutateStore((state) => {
       const academy = state.academies.find((entry) => entry.id === actor.academyId);
-      if (!academy || sports.some((entry) => !(academy.sports ?? []).includes(entry))) return { error: "Add the selected sports to this academy before creating the player." };
+      if (!academy) return { error: "This account is not linked to an academy." };
+      if (!actor.isOwner && sports.some((entry) => !(academy.sports ?? []).includes(entry))) return { error: "Add the selected sports to this academy before creating the player." };
+      if (actor.isOwner) {
+        const offered = academy.sports ?? [];
+        const added = sports.filter((entry) => !offered.includes(entry));
+        if (added.length) {
+          academy.sports = [...offered, ...added];
+          recordAudit(state, actor.id, "academy.sports.updated", academy.id, { added: added.join(", ") });
+        }
+      }
       const next = Math.max(0, ...state.players.map((p) => Number(p.id.replace(/\D/g, "")) || 0)) + 1;
       const record = { id: `EX-${String(next).padStart(3, "0")}`, academyId: academy.id, name, age, sport: sports[0], sports, active: true, createdAt: new Date().toISOString() };
       state.players.push(record);

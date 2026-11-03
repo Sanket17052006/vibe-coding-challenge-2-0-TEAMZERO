@@ -27,7 +27,7 @@ KhelGrid starts with an empty workspace. It does not seed fictional players, gro
 
 | 01 · BUILD THE ROSTER | 02 · RUN TRAINING | 03 · PLAY THE FIXTURE | 04 · FIND THE NEXT PLAY |
 |:--|:--|:--|:--|
-| Add real players, assign a stable Player ID, and choose one or more academy sports. | Open a dated session for one sport. Mark every rostered player Present or Absent, then close the sheet. | Schedule an opponent and venue. Record a result against a closed same-day session; only present players can receive stats and a Coach rating. | Readiness is calculated per sport. Scouts see eligible players; each player sees only their own history. |
+| Add real players, assign a stable Player ID, and choose one or more academy sports. | Open a dated session for one sport. Mark every rostered player Present or Absent, then close the sheet. | Schedule an opponent and venue. Record a result against a closed same-day session; only present players can receive stats and an optional Coach rating. | Readiness is calculated per sport. Scouts see eligible players; each player sees only their own history. |
 
 ### A clear path for every role
 
@@ -54,11 +54,11 @@ Request access to an academy. Once approved, see active players who meet the rea
 KhelGrid derives trial readiness separately for each sport:
 
 ```text
-Ready = Present marks / closed sessions that included the player >= 75%
+Ready = Present marks / closed sessions held for the sport >= 75%
         AND the player has score rows in at least 2 played matches
 ```
 
-Coaches attest attendance and enter results and ratings; the app does not verify physical presence. Closing a session locks its sheet after every rostered player has a Present or Absent mark. To record a match, at least one player must belong to that sport and have been marked Present in a closed session on that date. Each score row requires a non-negative whole-number stat and a Coach rating from 1 to 10 in half-point steps. Final score and outcome are Coach-entered; sport-specific result rules are not calculated by the app. A Coach can delete a match record; the audit history and separate attendance sheet remain.
+Coaches attest attendance and enter results and ratings; the app does not verify physical presence. Closing a session locks its sheet after every rostered player has a Present or Absent mark. To record a match, at least one player must belong to that sport and have been marked Present in a closed session on that date. Each score row requires a non-negative whole-number stat; a Coach rating from 1 to 10 in half-point steps is optional. Final score and outcome are Coach-entered; sport-specific result rules are not calculated by the app. A Coach can delete a match record; the audit history and separate attendance sheet remain.
 
 ## Architecture
 
@@ -111,6 +111,16 @@ SESSION_SECRET=<at-least-32-random-characters>
 ```
 
 Generate a session secret with `openssl rand -base64 48`. The sample secret in `.env.example` is a placeholder and must never be used in production.
+
+### Run the full stack in Docker
+
+Docker Compose starts the production build alongside a local MongoDB container:
+
+```bash
+docker compose up --build
+```
+
+Open [http://localhost:3100](http://localhost:3100). Data lives in the `mongo-data` volume; `docker compose down -v` removes it. The values in `docker-compose.yml` are local-only and must not be reused for a real deployment.
 
 ### Deploy to Vercel
 
