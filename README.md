@@ -142,7 +142,6 @@ lib/
   store.ts             MongoDB/local persistence and legacy normalization
   types.ts             Academy and domain record types
 public/
-  khelgrid-intro.mp4   Local sign-in intro
   khelgrid-mark.svg    Transparent sports mark
 ```
 
