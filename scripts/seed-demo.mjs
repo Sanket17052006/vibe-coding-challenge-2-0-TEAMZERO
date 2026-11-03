@@ -101,6 +101,7 @@ const pendingCoachUser = `khel_demo_coach_pending${suffix}`;
 const aaravUser = `khel_demo_player_aarav${suffix}`;
 const priyaUser = `khel_demo_player_priya${suffix}`;
 const rohitUser = `khel_demo_player_rohit${suffix}`;
+const sumanUser = `khel_demo_player_suman${suffix}`;
 const pendingPlayerUser = `khel_demo_player_pending${suffix}`;
 
 console.log(`Local seed target: ${BASE}`);
@@ -342,6 +343,10 @@ const rohitUserRecord = await signupPlayer("playerRohit", rohit, rohitUser);
 await approveUser(rohitUserRecord.id, "Rohit's player account");
 await login("playerRohit", rohitUser, "Rohit");
 
+const sumanUserRecord = await signupPlayer("playerSuman", suman, sumanUser);
+await approveUser(sumanUserRecord.id, "Suman's player account");
+await login("playerSuman", sumanUser, "Suman");
+
 await signupPlayer("pendingPlayer", vikram, pendingPlayerUser);
 const pendingPlayerLogin = await api("pendingPlayer", "POST", "/api/auth/login", { username: pendingPlayerUser, password: PASSWORD }, 401);
 check(/pending/i.test(pendingPlayerLogin.data?.error || ""), "pending player cannot sign in yet");
@@ -419,17 +424,53 @@ for (const player of scoutData.players) {
 eq(scoutData.sessions.length, 0, "scout sees no attendance sheets");
 eq(scoutData.matches.length, 0, "scout sees no match records");
 
+section("Trial calls and the player shortlist");
+const aaravTrial = await api("scout", "POST", "/api/trials", { playerId: aarav.id, sport: "Football" }, 201);
+pass(`active scout called Aarav for a Football trial (${aaravTrial.data.trial.id})`);
+const duplicateTrial = await api("scout", "POST", "/api/trials", { playerId: aarav.id, sport: "Football" }, 409);
+check(/already/i.test(duplicateTrial.data?.error || ""), "duplicate trial call is blocked");
+const notReadyTrial = await api("scout", "POST", "/api/trials", { playerId: priya.id, sport: "Badminton" }, 400);
+check(/not Ready/i.test(notReadyTrial.data?.error || ""), "a Developing player cannot be called for a trial");
+const wrongSportTrial = await api("scout", "POST", "/api/trials", { playerId: aarav.id, sport: "Cricket" }, 400);
+check(/not registered/i.test(wrongSportTrial.data?.error || ""), "a trial call needs a sport the player is registered for");
+const imranTrial = await api("scout", "POST", "/api/trials", { playerId: imran.id, sport: "Cricket" }, 201);
+pass("active scout called Imran for a Cricket trial");
+const sumanTrial = await api("scout", "POST", "/api/trials", { playerId: suman.id, sport: "Football" }, 201);
+pass("active scout called Suman for a Football trial");
+await api("scout", "DELETE", `/api/trials/${sumanTrial.data.trial.id}`, undefined, 200);
+pass("active scout withdrew Suman's trial call");
+const withdrawnAgain = await api("scout", "DELETE", `/api/trials/${sumanTrial.data.trial.id}`, undefined, 409);
+check(/already withdrawn/i.test(withdrawnAgain.data?.error || ""), "a withdrawn trial call cannot be withdrawn twice");
+const playerCannotCall = await api("playerAarav", "POST", "/api/trials", { playerId: imran.id, sport: "Cricket" }, 403);
+check(/permission/i.test(playerCannotCall.data?.error || ""), "a player cannot call a trial");
+const coachCannotCall = await api("coach", "POST", "/api/trials", { playerId: imran.id, sport: "Cricket" }, 403);
+check(/permission/i.test(coachCannotCall.data?.error || ""), "a coach cannot call a trial");
+const coachTrialCheck = (await api("coach", "GET", "/api/bootstrap", undefined, 200)).data;
+eq(coachTrialCheck.trials.length, 3, "coach sees the academy's three trial calls");
+eq(coachTrialCheck.trials.filter((trial) => trial.status === "active").length, 2, "coach sees two active trial calls");
+const scoutTrialCheck = (await api("scout", "GET", "/api/bootstrap", undefined, 200)).data;
+eq(scoutTrialCheck.trials.length, 3, "scout sees her own three trial calls");
+eq(scoutTrialCheck.trials.find((trial) => trial.playerId === aarav.id && trial.sport === "Football")?.status, "active", "Aarav's Football trial is active");
+eq(scoutTrialCheck.trials.find((trial) => trial.playerId === imran.id && trial.sport === "Cricket")?.status, "active", "Imran's Cricket trial is active");
+eq(scoutTrialCheck.trials.find((trial) => trial.playerId === suman.id && trial.sport === "Football")?.status, "withdrawn", "Suman's Football trial is withdrawn");
+
 const aaravView = (await api("playerAarav", "GET", "/api/bootstrap", undefined, 200)).data;
 eq(aaravView.players.length, 1, "Aarav sees exactly one player row");
 eq(aaravView.players[0].id, aarav.id, "Aarav sees his own Player ID");
 eq(aaravView.players[0].status, "Ready", "Aarav's own row is Ready");
 eq(aaravView.players[0].sportRequests.some((request) => request.sport === "Badminton" && request.status === "pending"), true, "Aarav sees his pending Badminton request");
 eq(aaravView.academy.code, "", "Aarav cannot see the academy code");
+eq(aaravView.trials.length, 1, "Aarav sees his one trial call");
+eq(aaravView.trials[0].sport, "Football", "Aarav's trial call is for Football");
+eq(aaravView.trials[0].status, "active", "Aarav is shortlisted for the Football trial");
+eq(aaravView.trials[0].scoutName, "Demo Scout", "Aarav sees the calling scout");
+eq(aaravView.trials.some((trial) => trial.playerId === imran.id), false, "Aarav cannot see another player's trial");
 
 const priyaView = (await api("playerPriya", "GET", "/api/bootstrap", undefined, 200)).data;
 eq(priyaView.players.length, 1, "Priya sees exactly one player row");
 eq(priyaView.players[0].id, priya.id, "Priya sees her own Player ID");
 eq(statOf(priyaView.players, priya.id, "Badminton"), "33.3|1|Developing", "Priya sees her Developing Badminton record");
+eq(priyaView.trials.length, 0, "Priya is not shortlisted for any trial");
 
 const rohitView = (await api("playerRohit", "GET", "/api/bootstrap", undefined, 200)).data;
 eq(rohitView.players.length, 1, "Rohit sees exactly one player row");
@@ -437,6 +478,14 @@ eq(rohitView.players[0].id, rohit.id, "Rohit sees his own Player ID");
 eq(rohitView.sessions.find((session) => session.date === "2026-10-22")?.attendance[0].status, "Absent", "Rohit sees his 2026-10-22 absence");
 eq(rohitView.sessions.find((session) => session.date === "2026-10-26")?.attendance[0].status, "Absent", "Rohit sees his 2026-10-26 absence");
 eq(rohitView.matches.length, 2, "Rohit sees only his two match rows");
+eq(rohitView.trials.length, 0, "Rohit is not shortlisted for any trial");
+
+const sumanView = (await api("playerSuman", "GET", "/api/bootstrap", undefined, 200)).data;
+eq(sumanView.players.length, 1, "Suman sees exactly one player row");
+eq(sumanView.trials.length, 1, "Suman sees his one trial call");
+eq(sumanView.trials[0].sport, "Football", "Suman's trial call is for Football");
+eq(sumanView.trials[0].status, "withdrawn", "Suman sees his trial call was withdrawn");
+eq(sumanView.trials[0].scoutName, "Demo Scout", "Suman sees the calling scout");
 
 section("Pending items waiting in Coach -> Access");
 console.log("Pending account requests:");
@@ -457,9 +506,12 @@ console.log(`Coach (pending): ${pendingCoachUser} / ${PASSWORD}`);
 console.log(`Player (Ready, Aarav): ${aaravUser} / ${PASSWORD} · Player ID ${aarav.id}`);
 console.log(`Player (Developing, Priya): ${priyaUser} / ${PASSWORD} · Player ID ${priya.id}`);
 console.log(`Player (absences, Rohit): ${rohitUser} / ${PASSWORD} · Player ID ${rohit.id}`);
+console.log(`Player (withdrawn trial, Suman): ${sumanUser} / ${PASSWORD} · Player ID ${suman.id}`);
 console.log(`Player (pending, Vikram): ${pendingPlayerUser} / ${PASSWORD} · Player ID ${vikram.id}`);
 console.log(`Archived player: Rahul Munda (${rahul.id}) — restore from Players`);
 console.log("Open session: Football 2026-11-03 — mark everyone and close it to score the scheduled fixture.");
 console.log("Scheduled fixtures: Football 2026-11-03 vs Deoghar Dynamos; Cricket 2026-11-04 vs Ranchi Royals.");
+console.log("Trial calls: Aarav Football active; Imran Cricket active; Suman Football withdrawn.");
+console.log("Player Trials tab: Aarav shortlisted; Suman withdrawn; Priya not shortlisted.");
 console.log("Approve the pending accounts and Aarav's Badminton request from Coach -> Access.");
 console.log(`\nThis seed wrote only to ${BASE} (local). Atlas was not touched.`);

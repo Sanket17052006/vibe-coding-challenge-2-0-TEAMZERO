@@ -27,7 +27,7 @@ KhelGrid starts with an empty workspace. The app itself does not seed fictional 
 
 | 01 · BUILD THE ROSTER | 02 · RUN TRAINING | 03 · PLAY THE FIXTURE | 04 · FIND THE NEXT PLAY |
 |:--|:--|:--|:--|
-| Add real players, assign a stable Player ID, and choose one or more academy sports. | Open a dated session for one sport. Mark every rostered player Present or Absent, then close the sheet. | Schedule an opponent and venue. Record player scores against a closed same-day session; only present players can be scored, and the final team result is optional. | Readiness is calculated per sport. Scouts see eligible players; each player sees only their own history. |
+| Add real players, assign a stable Player ID, and choose one or more academy sports. | Open a dated session for one sport. Mark every rostered player Present or Absent, then close the sheet. | Schedule an opponent and venue. Record player scores against a closed same-day session; only present players can be scored, and the final team result is optional. | Readiness is calculated per sport. Scouts see eligible players with aggregate scores and average Coach ratings, and can call them for a trial. Each player sees only their own history and trial calls. |
 
 ### A clear path for every role
 
@@ -38,15 +38,15 @@ Create an independent academy or request to join one. The owner configures offer
 </details>
 
 <details>
-<summary><strong>Player · follow your progress</strong></summary>
+<summary><strong>Player · follow your progress and trial calls</strong></summary>
 
-Your Coach adds you first. Join with the academy code, the Player ID from your record, and one or more sports offered by the academy. The linked account and each sport request need Coach approval before they become active. Players can review only their own attendance and match history. Leaving disables access while historical records remain with the academy.
+Your Coach adds you first. Join with the academy code, the Player ID from your record, and one or more sports offered by the academy. The linked account and each sport request need Coach approval before they become active. Players can review only their own attendance, match history, and aggregate ratings. The **Trials** tab shows active scout calls (shortlisted) and withdrawn calls. Leaving disables access while historical records remain with the academy.
 </details>
 
 <details>
-<summary><strong>Scout · see trial-ready players</strong></summary>
+<summary><strong>Scout · see trial-ready players and call trials</strong></summary>
 
-Request access to an academy. Once approved, see active players who meet the readiness rule, without access to attendance sheets or match administration.
+Request access to an academy. Once approved, see active players who meet the readiness rule, including aggregate score and average Coach rating per ready sport, without access to attendance sheets or match administration. A scout can call a Ready player for a trial in a ready sport and withdraw that call later. Coaches can see active and withdrawn calls in the Scouting view.
 </details>
 
 ## The rules behind readiness
@@ -58,7 +58,7 @@ Ready = Present marks / closed sessions held for the sport >= 75%
         AND the player has score rows in at least 2 played matches
 ```
 
-Coaches attest attendance and enter results and ratings; the app does not verify physical presence. Closing a session locks its sheet after every rostered player has a Present or Absent mark. To record a match, at least one player must belong to that sport and have been marked Present in a closed session on that date. Each score row requires a non-negative whole-number stat; a numeric Coach rating from 1 to 10 in half-point steps is optional. The final team score and outcome are optional; when supplied, both final scores and an outcome are required. Sport-specific result rules are not calculated by the app. A Coach can delete a match record; the audit history and separate attendance sheet remain.
+A trial call is an in-app shortlist decision by a scout. It does not change attendance, matches, or readiness, and the player can see active and withdrawn calls in **Trials**. Coaches attest attendance and enter results and ratings; the app does not verify physical presence. Closing a session locks its sheet after every rostered player has a Present or Absent mark. To record a match, at least one player must belong to that sport and have been marked Present in a closed session on that date. Each score row requires a non-negative whole-number stat; a numeric Coach rating from 1 to 10 in half-point steps is optional. The final team score and outcome are optional; when supplied, both final scores and an outcome are required. Sport-specific result rules are not calculated by the app. A Coach can delete a match record; the audit history and separate attendance sheet remain.
 
 ## Architecture
 
@@ -120,7 +120,7 @@ Then seed the demo:
 node scripts/seed-demo.mjs
 ```
 
-Open [http://localhost:3200](http://localhost:3200) and sign in with the credentials printed by the seed. It creates an academy with Football, Cricket, Badminton, Athletics, and Basketball; Ready, Developing, and archived players; closed and open sessions; played and scheduled matches; a score-only match; active and pending scouts; a pending player; a pending coach; and a pending sport request.
+Open [http://localhost:3200](http://localhost:3200) and sign in with the credentials printed by the seed. It creates an academy with Football, Cricket, Badminton, Athletics, and Basketball; Ready, Developing, and archived players; closed and open sessions; played and scheduled matches; a score-only match; active and pending scouts; a pending player; a pending coach; a pending sport request; and active and withdrawn trial calls so the player **Trials** tab has all three states to inspect.
 
 To rerun against the same local database, use `SEED_SUFFIX=2 node scripts/seed-demo.mjs` (or reset the local database). The seed prints the demo logins, Player IDs, and readiness table. Use the demo instead of the Atlas dev server, or run it from a separate copy of the project: two `next dev` processes in the same folder can conflict over `.next`.
 
@@ -160,7 +160,7 @@ Import the repository, then add `MONGODB_URI`, `MONGODB_DB`, and a unique `SESSI
 ```text
 app/
   api/                 Authentication, academy, access, players,
-                       sessions, matches, audit, health
+                       sessions, matches, trials, audit, health
   globals.css          Responsive brutalist visual system
   layout.tsx           Document metadata and app shell
   page.tsx             Sign-up, sign-in, role-based workspace
@@ -169,6 +169,7 @@ lib/
   http.ts              Same-origin and bounded JSON helpers
   rate-limit.ts        Request limits
   sports.ts            Canonical sport catalogue and date validation
+  readiness.ts         Per-sport readiness, score, and average-rating calculation
   store.ts             MongoDB/local persistence and legacy normalization
   types.ts             Academy and domain record types
 public/
@@ -181,7 +182,7 @@ scripts/
 
 KhelGrid has multi-academy workflows, but this is an early small-deployment build. Academies currently share one MongoDB document, which imposes a 16 MB document limit and serializes writes. A larger service should use academy-scoped collections and indexes, transaction and migration tooling, backups, monitoring, and load-tested rate limiting.
 
-There is no password reset, MFA, email delivery, automated test suite, CI workflow, full data export, guardian-consent flow, or complete sport-specific scoring engine. Attendance, results, and ratings are coach-entered. The audit log retains up to 5,000 events in the state document, and the Coach endpoint returns up to the latest 200 events within the Coach’s academy and sport permissions. Since player records include minors’ names and ages, establish consent, retention, access, and incident procedures before using real data at scale.
+There is no password reset, MFA, email delivery, automated test suite, CI workflow, full data export, guardian-consent flow, complete sport-specific scoring engine, trial scheduling, trial acceptance/decline flow, or external trial notification. Attendance, results, and ratings are coach-entered. The audit log retains up to 5,000 events in the state document, and the Coach endpoint returns up to the latest 200 events within the Coach’s academy and sport permissions. Since player records include minors’ names and ages, establish consent, retention, access, and incident procedures before using real data at scale.
 
 **Credential hygiene:** If a database credential has ever been exposed, rotate it in Atlas before using the database or deploying. Use a dedicated database user, store secrets only in local environment files or the host’s encrypted settings, and never commit them.
 

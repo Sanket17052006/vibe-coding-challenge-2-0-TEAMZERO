@@ -19,7 +19,7 @@ export async function hashPassword(password: string, salt = randomBytes(16).toSt
 }
 
 export async function createEmptyStore(): Promise<Store> {
-  return { academies: [], users: [], players: [], sessions: [], matches: [], auditEvents: [] };
+  return { academies: [], users: [], players: [], sessions: [], matches: [], trials: [], auditEvents: [] };
 }
 
 function normalizeStore(value: unknown): Store {
@@ -41,6 +41,7 @@ function normalizeStore(value: unknown): Store {
     players,
     sessions: raw.sessions.map((session) => ({ ...session, academyId: session.academyId ?? legacyAcademyId ?? "", playerIds: session.playerIds ?? session.attendance?.map((row) => row.playerId) ?? [] })),
     matches: raw.matches.map((match) => ({ ...match, academyId: match.academyId ?? legacyAcademyId ?? "" })),
+    trials: Array.isArray(raw.trials) ? raw.trials.map((trial) => ({ ...trial, academyId: trial.academyId ?? legacyAcademyId ?? "", status: trial.status === "withdrawn" ? "withdrawn" : "active" })) : [],
     auditEvents: Array.isArray(raw.auditEvents) ? raw.auditEvents.map((event) => ({ ...event, academyId: event.academyId ?? legacyAcademyId ?? "" })) : [],
   } as Store;
 }

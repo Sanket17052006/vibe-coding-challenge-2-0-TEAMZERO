@@ -52,3 +52,6 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 .modal-head{position:sticky;top:0;z-index:5;background:var(--white)}
 .access-request-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;padding:0 17px 18px}.access-request-grid .pending-list{min-width:0}.access-request-grid .pending-user{align-items:flex-start;flex-wrap:wrap}.access-request-grid .pending-user>span{min-width:100%;padding-bottom:5px}.access-request-grid .pending-user button{min-width:72px}
 @media(max-width:640px){.heading-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.heading-actions .button{min-width:0;white-space:nowrap}.access-request-grid{grid-template-columns:1fr;gap:16px;padding:0 12px 14px}}
+
+.trial-action{display:grid;gap:5px;align-items:start;min-width:0}
+.trial-action small{font:8px var(--mono);color:#85877d;white-space:normal}

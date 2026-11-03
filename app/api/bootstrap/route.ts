@@ -2,22 +2,20 @@ import { NextResponse } from "next/server";
 import { currentUser, publicUser } from "../../../lib/auth";
 import { getStore } from "../../../lib/store";
 import { errorResponse } from "../../../lib/http";
-import { Player, Session, Match } from "../../../lib/types";
+import { Player, Session, Match, Trial } from "../../../lib/types";
+import { sportStatsForPlayer } from "../../../lib/readiness";
 
 function decorate(players: Player[], sessions: Session[], matches: Match[]) {
   return players.map((player) => {
     const playerSports = player.sports ?? [player.sport];
-    const sportStats = playerSports.map((sport) => {
-      const held = sessions.filter((session) => session.status === "closed" && session.sport === sport);
-      const present = held.filter((session) => session.attendance.some((row) => row.playerId === player.id && row.status === "Present")).length;
-      const played = matches.filter((match) => match.status === "played" && match.sport === sport && match.scores.some((score) => score.playerId === player.id));
-      const attendance = held.length ? (present / held.length) * 100 : 0;
-      const ready = attendance >= 75 && played.length >= 2;
-      return { sport, attendance: Math.floor(attendance * 10) / 10, matches: played.length, score: played.reduce((total, match) => total + (match.scores.find((score) => score.playerId === player.id)?.value || 0), 0), status: ready ? "Ready" as const : "Developing" as const };
-    });
+    const sportStats = sportStatsForPlayer(player, sessions, matches);
     const primary = sportStats.find((entry) => entry.sport === player.sport) ?? sportStats[0];
     return { ...player, sports: playerSports, sportStats, attendance: primary?.attendance ?? 0, matches: primary?.matches ?? 0, score: primary?.score ?? 0, status: sportStats.some((entry) => entry.status === "Ready") ? "Ready" as const : "Developing" as const };
   });
+}
+
+function sortTrials(trials: Trial[]) {
+  return [...trials].sort((a, b) => a.status === b.status ? b.createdAt.localeCompare(a.createdAt) : a.status === "active" ? -1 : 1);
 }
 
 export async function GET() {
@@ -64,13 +62,18 @@ export async function GET() {
       : user.role === "player"
         ? academyMatches.filter((match) => match.status === "played" && match.scores.some((score) => score.playerId === user.playerId)).map((match) => { const { lineup, ...matchView } = match; return { ...matchView, scores: match.scores.filter((score) => score.playerId === user.playerId) }; })
         : [];
+    const trials = sortTrials(user.role === "coach"
+      ? state.trials.filter((trial) => trial.academyId === academy.id && (user.isOwner || !user.coachSports || user.coachSports.includes(trial.sport)))
+      : user.role === "scout"
+        ? state.trials.filter((trial) => trial.academyId === academy.id && trial.scoutId === user.id)
+        : state.trials.filter((trial) => trial.academyId === academy.id && trial.playerId === user.playerId));
     const pendingSportRequests = user.role === "coach" ? academyPlayers.flatMap((player) => {
       const member = state.users.find((entry) => entry.id === player.userId && entry.academyId === academy.id && entry.status === "active");
       return member ? (player.sportRequests ?? []).filter((request) => request.status === "pending" && (user.isOwner || !user.coachSports || user.coachSports.includes(request.sport))).map((request) => ({ playerId: player.id, playerName: player.name, sport: request.sport, requestId: request.id, requestedAt: request.requestedAt })) : [];
     }) : [];
     const safeAcademy = { id: academy.id, name: academy.name, location: academy.location, code: user.role === "coach" ? academy.code : "", sports: academy.sports ?? [] };
     return NextResponse.json({
-      user: publicUser(user), academy: safeAcademy, players: scopedPlayers, sessions, matches,
+      user: publicUser(user), academy: safeAcademy, players: scopedPlayers, sessions, matches, trials,
       pendingUsers: user.role === "coach" ? state.users.filter((entry) => entry.academyId === academy.id && entry.status === "pending" && (entry.role !== "coach" || user.isOwner)).map(publicUser) : [],
       pendingSportRequests,
       activeCoaches: user.role === "coach" ? state.users.filter((entry) => entry.academyId === academy.id && entry.role === "coach" && entry.status === "active").map(publicUser) : [],
