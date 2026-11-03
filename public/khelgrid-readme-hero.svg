@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="560" viewBox="0 0 1440 560" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">KhelGrid · Every session, every score, every next play</title>
+  <desc id="desc">A three-dimensional night sports ground with the KhelGrid ball mark and floating cards for players, training, and matches.</desc>
+  <defs>
+    <linearGradient id="sky" x1="120" y1="20" x2="1330" y2="560" gradientUnits="userSpaceOnUse"><stop stop-color="#101810"/><stop offset=".52" stop-color="#202820"/><stop offset="1" stop-color="#34422E"/></linearGradient>
+    <linearGradient id="pitch" x1="450" y1="205" x2="1110" y2="534" gradientUnits="userSpaceOnUse"><stop stop-color="#283D2A"/><stop offset="1" stop-color="#16251B"/></linearGradient>
+    <linearGradient id="lime" x1="1000" y1="70" x2="1310" y2="400" gradientUnits="userSpaceOnUse"><stop stop-color="#E5FF70"/><stop offset="1" stop-color="#B9F51D"/></linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FFFDF5"/><stop offset="1" stop-color="#EEEDE1"/></linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="170%" height="190%"><feGaussianBlur in="SourceAlpha" stdDeviation="15"/><feOffset dx="12" dy="18"/><feComponentTransfer><feFuncA type="linear" slope=".52"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="glow" x="-70%" y="-70%" width="240%" height="240%"><feGaussianBlur stdDeviation="13" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <pattern id="grain" width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".55" fill="#fff" fill-opacity=".12"/></pattern>
+  </defs>
+  <rect width="1440" height="560" rx="30" fill="url(#sky)"/>
+  <path d="M0 0h1440v560H0z" fill="url(#grain)" opacity=".22"/>
+  <circle cx="1250" cy="70" r="180" fill="#D4FF32" fill-opacity=".055"/>
+  <circle cx="1250" cy="70" r="125" stroke="#D4FF32" stroke-opacity=".13"/>
+  <circle cx="1250" cy="70" r="90" stroke="#D4FF32" stroke-opacity=".13" stroke-dasharray="4 9"/>
+
+  <!-- Isometric, floodlit pitch -->
+  <g opacity=".95">
+    <path d="m470 288 452-113 466 142-451 122-467-151Z" fill="#101710" stroke="#9AC326" stroke-opacity=".7" stroke-width="2"/>
+    <path d="m491 289 430-107 442 135-429 116-443-144Z" fill="url(#pitch)" stroke="#D4FF32" stroke-opacity=".55" stroke-width="2"/>
+    <path d="m491 289 443 144m-13-251-13 251m-200-197 199 197m-220-128 221 71" stroke="#D4FF32" stroke-opacity=".24" stroke-width="1.5"/>
+    <path d="m491 289 82-20 441 143-81 22-442-145Z" fill="#D4FF32" fill-opacity=".035"/>
+    <ellipse cx="916" cy="316" rx="75" ry="25" transform="rotate(-15 916 316)" stroke="#D4FF32" stroke-opacity=".3" stroke-width="1.5"/>
+    <path d="m510 315 37-9 2 21-37 10m799 4-38 10-2-21 38-10" stroke="#D4FF32" stroke-opacity=".6" stroke-width="2"/>
+    <path d="m506 287 11 3m827 113 12 4" stroke="#D4FF32" stroke-width="3" filter="url(#glow)"/>
+  </g>
+
+  <!-- Brand mark, drawn with no background -->
+  <g transform="translate(82 63) scale(1.52)" stroke="#D4FF32" stroke-width="1.8" stroke-linecap="square" stroke-linejoin="round">
+    <path d="M2 9h9M0 16h7M2 23h9"/><circle cx="24" cy="16" r="11"/><path d="m24 9 4 3-1 5-5 2-4-3 1-5 5-2Zm-5 7-7-2m15 2 7-2m-10 9 2 4m-1-16 3-5"/>
+  </g>
+  <text x="160" y="91" fill="#F5F3E7" font-family="Arial,Helvetica,sans-serif" font-size="23" font-weight="800" letter-spacing="2">KHELGRID <tspan fill="#D4FF32">/</tspan> SPORTS DESK</text>
+  <text x="84" y="189" fill="#D4FF32" font-family="monospace" font-size="13" letter-spacing="4">THE GRASSROOTS SPORTS DESK</text>
+  <text x="80" y="275" fill="#FFFDF5" font-family="Arial,Helvetica,sans-serif" font-size="66" font-weight="900" letter-spacing="-2">EVERY SESSION.</text>
+  <text x="80" y="346" fill="#FFFDF5" font-family="Arial,Helvetica,sans-serif" font-size="66" font-weight="900" letter-spacing="-2">EVERY <tspan fill="#D4FF32">SCORE.</tspan></text>
+  <text x="84" y="399" fill="#CFD2C2" font-family="Arial,Helvetica,sans-serif" font-size="19">One field-ready desk for the next play.</text>
+  <path d="M84 438h194" stroke="#D4FF32" stroke-width="3"/>
+  <text x="84" y="476" fill="#AFB5A4" font-family="monospace" font-size="12" letter-spacing="2">PLAYERS · TRAINING · MATCH DAY · TRIALS</text>
+
+  <!-- Floating operational cards -->
+  <g filter="url(#shadow)" transform="rotate(-7 1134 155)">
+    <rect x="1017" y="97" width="298" height="145" rx="7" fill="url(#panel)" stroke="#151B14" stroke-width="2"/>
+    <path d="M1018 103a6 6 0 0 1 6-6h286a6 6 0 0 1 6 6v12h-298V103Z" fill="url(#lime)"/>
+    <text x="1040" y="145" fill="#656D5E" font-family="monospace" font-size="11" letter-spacing="2">ACADEMY ROSTER</text>
+    <text x="1040" y="184" fill="#192019" font-family="Arial,Helvetica,sans-serif" font-size="25" font-weight="800">11 ON THE FIELD</text>
+    <text x="1040" y="215" fill="#72786C" font-family="monospace" font-size="11">PLAYER · SPORT · ATTENDANCE</text>
+    <circle cx="1278" cy="176" r="19" fill="#D4FF32"/><path d="m1270 176 6 6 11-13" stroke="#172017" stroke-width="3"/>
+  </g>
+  <g filter="url(#shadow)" transform="rotate(6 1164 338)">
+    <rect x="1041" y="275" width="276" height="130" rx="7" fill="url(#lime)" stroke="#151B14" stroke-width="2"/>
+    <text x="1064" y="312" fill="#535E3A" font-family="monospace" font-size="11" letter-spacing="2">MATCH DAY</text>
+    <text x="1064" y="350" fill="#172017" font-family="Arial,Helvetica,sans-serif" font-size="22" font-weight="900">SCORE THE MOMENT.</text>
+    <path d="M1064 374h196" stroke="#182018" stroke-opacity=".35"/>
+    <text x="1064" y="393" fill="#293122" font-family="monospace" font-size="10">RESULTS · RATINGS · READINESS</text>
+  </g>
+
+  <!-- Ball in motion -->
+  <circle cx="970" cy="190" r="32" fill="#D4FF32" fill-opacity=".12" filter="url(#glow)"/>
+  <circle cx="970" cy="190" r="15" fill="#F5F3E7" stroke="#D4FF32" stroke-width="2"/>
+  <path d="m970 181 6 4-2 7-7 2-4-6 2-6 5-1Zm-7 7-7-2m18 0 7-2m-13 10 2 5" stroke="#283226" stroke-width="1.4"/>
+  <path d="m947 190-36 9m25-24-27 5m31 27-27 10" stroke="#D4FF32" stroke-opacity=".7" stroke-width="2" stroke-linecap="round"/>
+  <text x="1348" y="510" fill="#9BA38F" font-family="monospace" font-size="10" letter-spacing="2">BUILT FOR THE NEXT PLAY</text>
+  <path d="M1320 501h-32" stroke="#D4FF32" stroke-width="2"/>
+</svg>
