@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
     const playerId = String(body.playerId || "").trim().toUpperCase();
     const age = Number(body.age);
     const requestedSports = Array.isArray(body.sports) ? [...new Set(body.sports.map((value: unknown) => String(value).trim()))] : [];
+    if (role === "player" && !playerId) return NextResponse.json({ error: "Ask your Coach to add you first, then sign up with the Player ID from your record." }, { status: 400 });
     const current = await getStore();
     const previousAccount = current.users.find((user) => user.username.toLowerCase() === username);
     const rejoining = previousAccount?.status === "left";

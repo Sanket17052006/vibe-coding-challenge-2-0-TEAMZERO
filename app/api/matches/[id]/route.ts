@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { canManageSport, requireRole } from "../../../../lib/auth";
 import { badRequest, errorResponse, readJsonBody } from "../../../../lib/http";
 import { mutateStore, recordAudit } from "../../../../lib/store";
+
+function finiteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const actor = await requireRole("coach");
@@ -36,27 +41,27 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (!entries.length) return { error: "Add at least one player score." , status: 400};
       const result = body.result;
       const validOutcomes = ["win", "loss", "draw", "no-contest"];
-      if (!result || typeof result.academyScore !== "string" || !result.academyScore.trim() || result.academyScore.length > 30 || typeof result.opponentScore !== "string" || !result.opponentScore.trim() || result.opponentScore.length > 30 || !validOutcomes.includes(result.outcome) || (result.detail != null && (typeof result.detail !== "string" || result.detail.length > 100)) || (result.finishMethod != null && (typeof result.finishMethod !== "string" || result.finishMethod.length > 30)) || (result.finishRound != null && (!Number.isInteger(Number(result.finishRound)) || Number(result.finishRound) < 1 || Number(result.finishRound) > 99))) return { error: "Enter both final scores and a valid match outcome. Optional result details are limited to 100 characters.", status: 400 };
+      if (result != null && (typeof result !== "object" || Array.isArray(result) || typeof result.academyScore !== "string" || !result.academyScore.trim() || result.academyScore.length > 30 || typeof result.opponentScore !== "string" || !result.opponentScore.trim() || result.opponentScore.length > 30 || !validOutcomes.includes(result.outcome) || (result.detail != null && (typeof result.detail !== "string" || result.detail.length > 100)) || (result.finishMethod != null && (typeof result.finishMethod !== "string" || result.finishMethod.length > 30)) || (result.finishRound != null && (!Number.isInteger(Number(result.finishRound)) || Number(result.finishRound) < 1 || Number(result.finishRound) > 99)))) return { error: "If you enter a final result, provide both final scores and a valid outcome. Optional result details are limited to 100 characters.", status: 400 };
       const unique = new Set<string>();
       for (const item of entries) {
-        const playerId = String(item?.playerId || ""); const score = Number(item?.value);
-        const hasRating = item?.rating !== undefined && item?.rating !== null && String(item.rating).trim() !== "";
+        const playerId = String(item?.playerId || ""); const score = finiteNumber(item?.value);
+        const hasRating = item?.rating !== undefined && item?.rating !== null;
         if (unique.has(playerId)) return { error: "A player can only appear once on a match sheet.", status: 400 };
         unique.add(playerId);
         if (!session.attendance.some((entry) => entry.playerId === playerId && entry.status === "Present")) return { error: "A player absent from that day's closed session cannot be scored.", status: 400 };
         if (!state.players.some((player) => player.academyId === actor.academyId && player.id === playerId && (player.sports ?? [player.sport]).includes(match.sport))) return { error: "This player is not registered for the match sport.", status: 400 };
-        if (!Number.isInteger(score) || score < 0 || score > 100000) return { error: "Scores must be whole non-negative numbers below 100,000.", status: 400 };
+        if (score === null || !Number.isInteger(score) || score < 0 || score > 100000) return { error: "Scores must be whole non-negative numbers below 100,000.", status: 400 };
         if (hasRating) {
-          const rating = Number(item.rating);
-          if (!Number.isFinite(rating) || rating < 1 || rating > 10 || !Number.isInteger(rating * 2)) return { error: "Player ratings must be from 1 to 10 in half-point steps." , status: 400};
+          const rating = finiteNumber(item.rating);
+          if (rating === null || rating < 1 || rating > 10 || !Number.isInteger(rating * 2)) return { error: "Player ratings must be numbers from 1 to 10 in half-point steps." , status: 400};
         }
       }
-      match.scores = entries.map((entry: { playerId: string; value: number; rating?: number | string | null }) => {
-        const hasRating = entry.rating !== undefined && entry.rating !== null && String(entry.rating).trim() !== "";
+      match.scores = entries.map((entry: { playerId: string; value: number; rating?: number | null }) => {
+        const hasRating = entry.rating !== undefined && entry.rating !== null;
         return { playerId: String(entry.playerId), value: Number(entry.value), ...(hasRating ? { rating: Number(entry.rating) } : {}) };
       });
-      match.result = { academyScore: result.academyScore.trim(), opponentScore: result.opponentScore.trim(), outcome: result.outcome, detail: typeof result.detail === "string" && result.detail.trim() ? result.detail.trim() : undefined, finishMethod: typeof result.finishMethod === "string" && result.finishMethod.trim() ? result.finishMethod.trim() : undefined, finishRound: result.finishRound == null || result.finishRound === "" ? undefined : Number(result.finishRound) };
-      match.status = "played"; recordAudit(state, actor.id, "match.result.recorded", match.id, { playerCount: entries.length, outcome: result.outcome, date: match.date, sport: match.sport }); return { match };
+      if (result) match.result = { academyScore: result.academyScore.trim(), opponentScore: result.opponentScore.trim(), outcome: result.outcome, detail: typeof result.detail === "string" && result.detail.trim() ? result.detail.trim() : undefined, finishMethod: typeof result.finishMethod === "string" && result.finishMethod.trim() ? result.finishMethod.trim() : undefined, finishRound: result.finishRound == null || result.finishRound === "" ? undefined : Number(result.finishRound) };
+      match.status = "played"; recordAudit(state, actor.id, result ? "match.result.recorded" : "match.scores.recorded", match.id, { playerCount: entries.length, outcome: result?.outcome ?? "not-recorded", date: match.date, sport: match.sport }); return { match };
     });
     return "error" in result ? NextResponse.json({ error: result.error }, { status: result.status }) : NextResponse.json(result);
   } catch (error) { return errorResponse(error); }

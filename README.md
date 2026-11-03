@@ -19,15 +19,15 @@
 
 KhelGrid gives a coach one practical place to manage a real academy: build a player register, take attendance, schedule fixtures, record results and ratings, and see who is ready for a trial. The interface works across desktop and mobile browsers.
 
-One deployment can host **many independent academies**. A coach can create an academy and become its owner, or request to join another academy using its code. Scouts request academy access by code and wait for Coach approval. Players use an academy code to create or link a profile, then request the offered sports they want to join. A self-created Player login can be active immediately while sport requests remain pending; linking an existing Coach-created Player ID requires approval before that login is active. Records and permissions are scoped to the selected academy.
+One deployment can host **many independent academies**. A coach can create an academy and become its owner, or request to join another academy using its code. Scouts request academy access by code and wait for Coach approval. Players join with an academy code and a Coach-created Player ID, then request the offered sports they want to join. A Coach must approve the player account and each sport request before they become active. Records and permissions are scoped to the selected academy.
 
-KhelGrid starts with an empty workspace. It does not seed fictional players, grounds, match results, or login details.
+KhelGrid starts with an empty workspace. The app itself does not seed fictional players, grounds, match results, or login details. An optional local-only demo seed is documented under **Get on the field**; it writes to a separate local database and is not part of a deployment.
 
 ## How the desk works
 
 | 01 · BUILD THE ROSTER | 02 · RUN TRAINING | 03 · PLAY THE FIXTURE | 04 · FIND THE NEXT PLAY |
 |:--|:--|:--|:--|
-| Add real players, assign a stable Player ID, and choose one or more academy sports. | Open a dated session for one sport. Mark every rostered player Present or Absent, then close the sheet. | Schedule an opponent and venue. Record a result against a closed same-day session; only present players can receive stats and an optional Coach rating. | Readiness is calculated per sport. Scouts see eligible players; each player sees only their own history. |
+| Add real players, assign a stable Player ID, and choose one or more academy sports. | Open a dated session for one sport. Mark every rostered player Present or Absent, then close the sheet. | Schedule an opponent and venue. Record player scores against a closed same-day session; only present players can be scored, and the final team result is optional. | Readiness is calculated per sport. Scouts see eligible players; each player sees only their own history. |
 
 ### A clear path for every role
 
@@ -40,7 +40,7 @@ Create an independent academy or request to join one. The owner configures offer
 <details>
 <summary><strong>Player · follow your progress</strong></summary>
 
-Join with an academy code and request one or more sports. A self-created Player login can be used while sport approval is pending, but the Player is not added to an approved sport roster until a Coach approves that request. If the Coach already created the Player record, the Player ID must be linked and approved before sign-in. Players can review only their own attendance and match history. Leaving disables access while historical records remain with the academy.
+Your Coach adds you first. Join with the academy code, the Player ID from your record, and one or more sports offered by the academy. The linked account and each sport request need Coach approval before they become active. Players can review only their own attendance and match history. Leaving disables access while historical records remain with the academy.
 </details>
 
 <details>
@@ -58,7 +58,7 @@ Ready = Present marks / closed sessions held for the sport >= 75%
         AND the player has score rows in at least 2 played matches
 ```
 
-Coaches attest attendance and enter results and ratings; the app does not verify physical presence. Closing a session locks its sheet after every rostered player has a Present or Absent mark. To record a match, at least one player must belong to that sport and have been marked Present in a closed session on that date. Each score row requires a non-negative whole-number stat; a Coach rating from 1 to 10 in half-point steps is optional. Final score and outcome are Coach-entered; sport-specific result rules are not calculated by the app. A Coach can delete a match record; the audit history and separate attendance sheet remain.
+Coaches attest attendance and enter results and ratings; the app does not verify physical presence. Closing a session locks its sheet after every rostered player has a Present or Absent mark. To record a match, at least one player must belong to that sport and have been marked Present in a closed session on that date. Each score row requires a non-negative whole-number stat; a numeric Coach rating from 1 to 10 in half-point steps is optional. The final team score and outcome are optional; when supplied, both final scores and an outcome are required. Sport-specific result rules are not calculated by the app. A Coach can delete a match record; the audit history and separate attendance sheet remain.
 
 ## Architecture
 
@@ -67,7 +67,7 @@ flowchart LR
   C[Coach · Player · Scout<br/>Responsive browser] -->|Same-origin JSON<br/>signed HttpOnly cookie| N[Next.js App Router<br/>UI + route handlers]
   N --> V[Validation · role checks<br/>academy and sport scope]
   V --> D[Academy domain records<br/>roster · sessions · matches · audit]
-  D -->|MONGODB_URI set| M[(MongoDB Atlas<br/>appState + rateLimits)]
+  D -->|MONGODB_URI set| M[(MongoDB<br/>Atlas or local<br/>appState + rateLimits)]
   D -->|Local development only| F[(data/excelrs.json)]
 ```
 
@@ -78,7 +78,7 @@ Each account and operational record carries an `academyId`. Server handlers sele
 ### Requirements
 
 - Node.js 20 LTS or newer and npm
-- A MongoDB Atlas database for shared or deployed use (optional for local-only development)
+- A MongoDB database (Atlas for shared or deployed use, or a local MongoDB) — optional for local-only development
 - The project source (a GitHub account is not required to run a downloaded copy)
 - A Vercel account only if you want to deploy there
 
@@ -93,6 +93,36 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000), choose **Create account → Coach → Create a new academy**, and set up your real academy. With `MONGODB_URI` blank, local records go to `data/excelrs.json`; this local file is ignored by Git and is not shared between machines. To clone a public repository, use its Git URL in place of `<your-repository-url>`; otherwise download the source and open a terminal in its project folder before running `npm ci`.
+
+### Seed a local demo (optional, local-only)
+
+The demo seed writes only to a local app instance and refuses any host other than `localhost` / `127.0.0.1`. The commands below also point the app at a local MongoDB, so the demo never uses the Atlas URI from `.env.local`.
+
+In one terminal, start a local MongoDB (if installed):
+
+```bash
+mkdir -p data/mongo
+mongod --dbpath data/mongo --port 27018 --bind_ip 127.0.0.1
+```
+
+In another terminal, start the app against that local database. The inline variables override `.env.local`:
+
+```bash
+MONGODB_URI=mongodb://127.0.0.1:27018/khelgrid_demo_local \
+MONGODB_DB=khelgrid_demo_local \
+SESSION_SECRET="$(openssl rand -base64 48)" \
+npm run dev -- -p 3200
+```
+
+Then seed the demo:
+
+```bash
+node scripts/seed-demo.mjs
+```
+
+Open [http://localhost:3200](http://localhost:3200) and sign in with the credentials printed by the seed. It creates an academy with Football, Cricket, Badminton, Athletics, and Basketball; Ready, Developing, and archived players; closed and open sessions; played and scheduled matches; a score-only match; active and pending scouts; a pending player; a pending coach; and a pending sport request.
+
+To rerun against the same local database, use `SEED_SUFFIX=2 node scripts/seed-demo.mjs` (or reset the local database). The seed prints the demo logins, Player IDs, and readiness table. Use the demo instead of the Atlas dev server, or run it from a separate copy of the project: two `next dev` processes in the same folder can conflict over `.next`.
 
 ### Connect MongoDB Atlas
 
@@ -112,16 +142,6 @@ SESSION_SECRET=<at-least-32-random-characters>
 
 Generate a session secret with `openssl rand -base64 48`. The sample secret in `.env.example` is a placeholder and must never be used in production.
 
-### Run the full stack in Docker
-
-Docker Compose starts the production build alongside a local MongoDB container:
-
-```bash
-docker compose up --build
-```
-
-Open [http://localhost:3100](http://localhost:3100). Data lives in the `mongo-data` volume; `docker compose down -v` removes it. The values in `docker-compose.yml` are local-only and must not be reused for a real deployment.
-
 ### Deploy to Vercel
 
 Import the repository, then add `MONGODB_URI`, `MONGODB_DB`, and a unique `SESSION_SECRET` to the Vercel project’s **server-side** environment variables. Configure Atlas network access for the deployment, deploy, and verify `/api/health` before inviting users. Never expose these values as `NEXT_PUBLIC_*` variables. Login usernames are unique across the entire deployment because login currently accepts a username and password, not an academy selector.
@@ -131,7 +151,7 @@ Import the repository, then add `MONGODB_URI`, `MONGODB_DB`, and a unique `SESSI
 | Layer | Choice |
 |:--|:--|
 | Web app and API | Next.js 15 App Router, React 19, TypeScript |
-| Persistence | MongoDB Node.js driver; local JSON fallback for development |
+| Persistence | MongoDB Node.js driver (Atlas or local); local JSON fallback for development |
 | Authentication | Node.js crypto: scrypt password hashing and signed session cookies |
 | Interface | Custom responsive CSS, Lucide icons, generated academy QR codes |
 
@@ -153,6 +173,8 @@ lib/
   types.ts             Academy and domain record types
 public/
   khelgrid-mark.svg    Transparent sports mark
+scripts/
+  seed-demo.mjs        Optional local-only demo data seed
 ```
 
 ## Before real-world rollout
