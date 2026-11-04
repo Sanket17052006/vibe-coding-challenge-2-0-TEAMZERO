@@ -54,7 +54,7 @@ Request access to an academy. Once approved, see active players who meet the rea
 KhelGrid derives trial readiness separately for each sport:
 
 ```text
-Ready = Present marks / closed sessions held for the sport >= 75%
+Ready = Present marks / closed sessions for that sport where the player was rostered >= 75%
         AND the player has score rows in at least 2 played matches
 ```
 

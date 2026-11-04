@@ -48,7 +48,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         const hasRating = item?.rating !== undefined && item?.rating !== null;
         if (unique.has(playerId)) return { error: "A player can only appear once on a match sheet.", status: 400 };
         unique.add(playerId);
-        if (!session.attendance.some((entry) => entry.playerId === playerId && entry.status === "Present")) return { error: "A player absent from that day's closed session cannot be scored.", status: 400 };
+        if (!session.playerIds.includes(playerId) || !session.attendance.some((entry) => entry.playerId === playerId && entry.status === "Present")) return { error: "Only a player on that day's session sheet and marked Present can be scored.", status: 400 };
         if (!state.players.some((player) => player.academyId === actor.academyId && player.id === playerId && (player.sports ?? [player.sport]).includes(match.sport))) return { error: "This player is not registered for the match sport.", status: 400 };
         if (score === null || !Number.isInteger(score) || score < 0 || score > 100000) return { error: "Scores must be whole non-negative numbers below 100,000.", status: 400 };
         if (hasRating) {

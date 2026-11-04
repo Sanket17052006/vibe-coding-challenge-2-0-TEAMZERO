@@ -13,7 +13,14 @@ export type SportStat = {
 export function sportStatsForPlayer(player: Player, sessions: Session[], matches: Match[]): SportStat[] {
   const playerSports = player.sports ?? [player.sport];
   return playerSports.map((sport) => {
-    const held = sessions.filter((session) => session.status === "closed" && session.sport === sport);
+    // A session is part of this player's attendance denominator only when
+    // they were on its roster. Players added after a session opened must not
+    // be marked absent from a session they could not attend.
+    const held = sessions.filter((session) =>
+      session.status === "closed" &&
+      session.sport === sport &&
+      (session.playerIds ?? session.attendance.map((row) => row.playerId)).includes(player.id),
+    );
     const present = held.filter((session) => session.attendance.some((row) => row.playerId === player.id && row.status === "Present")).length;
     const played = matches.filter((match) => match.status === "played" && match.sport === sport && match.scores.some((score) => score.playerId === player.id));
     const attendance = held.length ? (present / held.length) * 100 : 0;
