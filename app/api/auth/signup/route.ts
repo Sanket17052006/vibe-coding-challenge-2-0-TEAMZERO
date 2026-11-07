@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { hashPassword, getStore, mutateStore, recordAudit } from "../../../../lib/store";
 import { publicUser, verifyPassword } from "../../../../lib/auth";
-import { User } from "../../../../lib/types";
-import { randomUUID } from "node:crypto";
+import { type Role } from "../../../../lib/types";
 import { badRequest, errorResponse, readJsonBody } from "../../../../lib/http";
 import { rateLimit } from "../../../../lib/rate-limit";
 import { isSupportedSport } from "../../../../lib/sports";
-import { normalizeEmail, validEmail, hasDuplicateEmail, issueToken, sendAuthEmail } from "../../../../lib/email-auth";
+import { hasDuplicateEmail, issueToken, normalizeEmail, sendAuthEmail, validEmail } from "../../../../lib/email-auth";
+import { configuredAcademyRecord, resolveAcademyIdentity } from "../../../../lib/single-academy";
+import { buildPendingAccount } from "../../../../lib/membership";
+
+const VERIFY_EXPIRY_MS = 24 * 60 * 60 * 1000;
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,118 +19,114 @@ export async function POST(request: NextRequest) {
     const limited = await rateLimit(request, "signup", "", 20, 60 * 60 * 1000);
     if (limited) return limited;
 
-    const username = String(body.username || "").trim().toLowerCase();
-    const displayName = String(body.displayName || "").trim();
-    const password = String(body.password || "");
+    const username = String(body.username ?? "").trim().toLowerCase();
+    const displayName = String(body.displayName ?? "").normalize("NFKC").trim();
+    const password = String(body.password ?? "");
     const email = normalizeEmail(body.email);
+    const roleValue = String(body.role ?? "");
+    if (roleValue !== "coach" && roleValue !== "player" && roleValue !== "scout") return NextResponse.json({ error: "Choose Coach, Player, or Scout." }, { status: 400 });
+    const role: Role = roleValue;
     if (!validEmail(email)) return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
-    const role = String(body.role || "");
-    const academyMode = role === "coach" ? String(body.academyMode || "create") : "join";
     if (!/^[a-z0-9._-]{3,32}$/.test(username) || displayName.length < 2 || displayName.length > 60 || password.length < 8 || password.length > 128) {
       return NextResponse.json({ error: "Use a name (2–60 characters), a username (3–32 letters, numbers, dot, underscore, or dash), and a password (8–128 characters)." }, { status: 400 });
     }
-    if (!["coach", "player", "scout"].includes(role)) return NextResponse.json({ error: "Choose Coach, Player, or Scout." }, { status: 400 });
-    if (role === "coach" && !["create", "join"].includes(academyMode)) return NextResponse.json({ error: "Choose whether to create an academy or join one." }, { status: 400 });
 
-    const createsAcademy = role === "coach" && academyMode === "create";
-    const academyCode = String(body.academyCode || "").trim().toUpperCase();
-    const playerId = String(body.playerId || "").trim().toUpperCase();
     const age = Number(body.age);
     const requestedSports = Array.isArray(body.sports) ? [...new Set(body.sports.map((value: unknown) => String(value).trim()))] : [];
-    if (role === "player" && !playerId) return NextResponse.json({ error: "Ask your Coach to add you first, then sign up with the Player ID from your record." }, { status: 400 });
+    if (role === "player" && (!Number.isInteger(age) || age < 5 || age > 50 || !requestedSports.length)) {
+      return NextResponse.json({ error: "Enter an age from 5 to 50 and request at least one sport offered by KhelGrid." }, { status: 400 });
+    }
+    if (requestedSports.some((sport) => !isSupportedSport(sport))) return NextResponse.json({ error: "Choose sports from the KhelGrid catalogue." }, { status: 400 });
+
     const current = await getStore();
-    if (hasDuplicateEmail(current.users, email) && !current.users.some((user) => user.username.toLowerCase() === username && user.status === "left" && user.email?.toLowerCase() === email)) return NextResponse.json({ error: "That email address is already in use." }, { status: 409 });
-    const previousAccount = current.users.find((user) => user.username.toLowerCase() === username);
+    const academyIdentity = resolveAcademyIdentity(current);
+    const academySports = current.academies.find((academy) => academy.id === academyIdentity.id)?.sports ?? [];
+    if (role === "player" && requestedSports.some((sport) => !academySports.includes(sport))) {
+      return NextResponse.json({ error: "One or more requested sports are not currently offered. Ask the Coach about available sports." }, { status: 400 });
+    }
+    const previousAccount = current.users.find((user) => user.username === username);
     const rejoining = previousAccount?.status === "left";
     if (previousAccount && !rejoining) return NextResponse.json({ error: "That username is already taken." }, { status: 409 });
-    if (rejoining && (previousAccount.role !== role || !(await verifyPassword(password, previousAccount.passwordSalt, previousAccount.passwordHash)))) return NextResponse.json({ error: "That username is already taken or the account details are incorrect." }, { status: 409 });
-    if (rejoining && createsAcademy) return NextResponse.json({ error: "To restore this account, join the same academy with its academy code." }, { status: 400 });
-
-    const targetAcademy = createsAcademy ? null : current.academies.find((academy) => academy.code === academyCode) ?? null;
-    if (!createsAcademy && !targetAcademy) return NextResponse.json({ error: "No academy found for that code. Check the code shared by the Coach." }, { status: 404 });
-    if (rejoining && previousAccount.academyId !== targetAcademy?.id) return NextResponse.json({ error: "This account can only rejoin its previous academy." }, { status: 409 });
-    const academySports = targetAcademy?.sports ?? [];
-    if (role === "player" && (!Number.isInteger(age) || age < 5 || age > 50 || !requestedSports.length || requestedSports.some((sport) => !academySports.includes(sport) || !isSupportedSport(sport)))) return NextResponse.json({ error: "Enter an age from 5 to 50 and request at least one sport offered by this academy." }, { status: 400 });
-    if (role === "coach" && !createsAcademy && (!requestedSports.length || requestedSports.some((sport) => !academySports.includes(sport) || !isSupportedSport(sport)))) return NextResponse.json({ error: "Select at least one sport offered by this academy to request Coach access." }, { status: 400 });
-    if (role === "player" && playerId && !current.players.some((player) => player.academyId === targetAcademy?.id && player.id === playerId && (player.active || (rejoining && player.userId === previousAccount?.id)))) return NextResponse.json({ error: "That Player ID is not available in this academy." }, { status: 400 });
+    if (rejoining && (previousAccount.role !== role || previousAccount.email !== email || !(await verifyPassword(password, previousAccount.passwordSalt, previousAccount.passwordHash)))) {
+      return NextResponse.json({ error: "That username is already taken or the account details are incorrect." }, { status: 409 });
+    }
+    if (hasDuplicateEmail(current.users, email, rejoining ? previousAccount.id : undefined)) return NextResponse.json({ error: "That email address is already in use." }, { status: 409 });
+    if (role === "coach" && current.academies.length && (!requestedSports.length && current.academies[0].sports?.length)) {
+      return NextResponse.json({ error: "Select at least one sport you coach." }, { status: 400 });
+    }
+    if (role === "coach" && requestedSports.some((sport) => !academySports.includes(sport))) {
+      return NextResponse.json({ error: "Select sports currently offered by KhelGrid." }, { status: 400 });
+    }
+    if (role === "player" && current.users.some((user) =>
+      user.id !== previousAccount?.id && user.role === "player" && user.status === "pending" &&
+      user.pendingPlayer?.age === age && user.displayName.normalize("NFKC").trim().toLocaleLowerCase("en-US") === displayName.toLocaleLowerCase("en-US"),
+    )) {
+      return NextResponse.json({ error: "A pending registration for these player details already exists. Contact the Coach if this is a different person." }, { status: 409 });
+    }
 
     const credentials = await hashPassword(password);
     const result = await mutateStore((state) => {
-      if (hasDuplicateEmail(state.users, email, previousAccount?.id)) return { error: "That email address is already in use.", status: 409 };
-      const existing = state.users.find((user) => user.username.toLowerCase() === username);
-      if (existing) {
-        if (existing.status !== "left" || !rejoining || existing.role !== role || existing.academyId !== targetAcademy?.id || !(existing.passwordSalt === previousAccount?.passwordSalt && existing.passwordHash === previousAccount?.passwordHash) || (role === "player" && playerId && existing.playerId !== playerId)) return { error: "That username is already taken or the account details are incorrect.", status: 409 };
-        const academy = state.academies.find((entry) => entry.id === existing.academyId && entry.code === academyCode);
-        if (!academy) return { error: "Enter the code for the academy this account previously belonged to.", status: 400 };
-        existing.status = "pending";
-        if (existing.email && existing.email.toLowerCase() !== email && state.users.some((user) => user.id !== existing.id && user.email?.toLowerCase() === email)) return { error: "That email address is already in use.", status: 409 };
-        existing.email = email;
-        existing.emailVerifiedAt = undefined;
-        existing.sessionVersion = (existing.sessionVersion ?? 0) + 1;
-        if (role === "coach") existing.coachSports = requestedSports;
-        const player = existing.playerId && state.players.find((entry) => entry.academyId === academy.id && entry.id === existing.playerId);
-        if (player) {
-          player.active = false;
-          player.sportRequests = player.sportRequests ?? [];
-          for (const sport of requestedSports) if (!(player.sports ?? []).includes(sport) && !player.sportRequests.some((entry) => entry.sport === sport && entry.status === "pending")) player.sportRequests.push({ id: randomUUID(), sport, status: "pending", requestedAt: new Date().toISOString() });
-        }
-        recordAudit(state, existing.id, "access.rejoin_requested", existing.id, { role: existing.role });
-        return { user: existing };
-      }
-
-      let academy = createsAcademy ? null : state.academies.find((entry) => entry.code === academyCode) ?? null;
-      if (!createsAcademy && !academy) return { error: "The academy code was not found. Refresh and try again.", status: 409 };
-      if (createsAcademy) {
-        const academyName = String(body.academyName || "").trim();
-        const location = String(body.location || "").trim();
-        if (academyName.length < 2 || academyName.length > 80 || location.length > 100) return { error: "Enter an academy name (2–80 characters) and a location under 100 characters.", status: 400 };
-        const id = randomUUID();
-        let code = `EXR-${id.slice(0, 4).toUpperCase()}-${id.slice(4, 8).toUpperCase()}`;
-        while (state.academies.some((entry) => entry.code === code)) code = `EXR-${randomUUID().slice(0, 4).toUpperCase()}-${randomUUID().slice(0, 4).toUpperCase()}`;
-        academy = { id: `academy-${id}`, name: academyName, location, code, sports: [], createdAt: new Date().toISOString() };
+      const identity = resolveAcademyIdentity(state);
+      let academy = state.academies.find((entry) => entry.id === identity.id);
+      if (hasDuplicateEmail(state.users, email, rejoining ? previousAccount?.id : undefined)) return { error: "That email address is already in use.", status: 409 };
+      const currentUser = state.users.find((user) => user.username === username);
+      if (currentUser && (!rejoining || currentUser.id !== previousAccount?.id || currentUser.status !== "left")) return { error: "That username is already taken.", status: 409 };
+      if (role === "player" && state.users.some((user) =>
+        user.id !== currentUser?.id && user.role === "player" && user.status === "pending" &&
+        user.pendingPlayer?.age === age && user.displayName.normalize("NFKC").trim().toLocaleLowerCase("en-US") === displayName.toLocaleLowerCase("en-US"),
+      )) return { error: "A pending registration for these player details already exists. Contact the Coach if this is a different person.", status: 409 };
+      if (role === "player" && requestedSports.some((sport) => !(academy?.sports ?? []).includes(sport))) return { error: "One or more requested sports are no longer offered.", status: 409 };
+      if (role === "coach" && requestedSports.some((sport) => !(academy?.sports ?? []).includes(sport))) return { error: "One or more selected sports are no longer offered.", status: 409 };
+      if (!academy) {
+        academy = configuredAcademyRecord(identity, []);
         state.academies.push(academy);
       }
 
-      if (role === "player" && requestedSports.some((sport) => !(academy!.sports ?? []).includes(sport))) return { error: "One of those sports is no longer offered by the academy. Refresh and choose again.", status: 409 };
-      if (role === "coach" && !createsAcademy && requestedSports.some((sport) => !(academy!.sports ?? []).includes(sport))) return { error: "One of those sports is no longer offered by the academy. Refresh and choose again.", status: 409 };
-      const linkedPlayer = role === "player" ? (playerId ? state.players.find((entry) => entry.academyId === academy!.id && entry.id === playerId) : undefined) : undefined;
-      if (role === "player" && playerId && (!linkedPlayer || linkedPlayer.userId)) return { error: "That Player ID is already linked to an account or unavailable.", status: 409 };
-      let playerRecord = linkedPlayer;
-      if (role === "player" && !playerRecord) {
-        const next = Math.max(0, ...state.players.map((entry) => Number(entry.id.replace(/\D/g, "")) || 0)) + 1;
-        playerRecord = { id: `EX-${String(next).padStart(3, "0")}`, academyId: academy!.id, name: displayName, age, sport: requestedSports[0], sports: [], sportRequests: [], active: true, createdAt: new Date().toISOString() };
-        state.players.push(playerRecord);
+      if (currentUser && rejoining) {
+        currentUser.status = "pending";
+        currentUser.email = email;
+        currentUser.sessionVersion = (currentUser.sessionVersion ?? 0) + 1;
+        if (currentUser.role === "coach") currentUser.coachSports = currentUser.isOwner ? undefined : requestedSports;
+        recordAudit(state, currentUser.id, "access.rejoin_requested", currentUser.id, { role: currentUser.role });
+        return { user: currentUser, needsVerification: !currentUser.emailVerifiedAt };
       }
-      if (role === "player" && playerRecord) {
-        if (!playerId) { playerRecord.name = displayName; playerRecord.age = age; }
-        playerRecord.active = true;
-        playerRecord.sports = playerRecord.sports ?? [];
-        playerRecord.sportRequests = playerRecord.sportRequests ?? [];
-        for (const sport of requestedSports) if (!playerRecord.sports.includes(sport) && !playerRecord.sportRequests.some((entry) => entry.sport === sport && entry.status === "pending")) playerRecord.sportRequests.push({ id: randomUUID(), sport, status: "pending", requestedAt: new Date().toISOString() });
-      }
-      const isFirstCoach = role === "coach" && createsAcademy;
-      const user: User = {
-        id: randomUUID(), academyId: academy!.id, username, displayName, role: role as User["role"],
-        email,
-        status: isFirstCoach || role === "player" && !playerId ? "active" : "pending",
-        playerId: role === "player" ? playerRecord?.id : undefined,
-        coachSports: role === "coach" && !isFirstCoach ? requestedSports : undefined,
-        isOwner: isFirstCoach,
-        passwordHash: credentials.hash, passwordSalt: credentials.salt, createdAt: new Date().toISOString(),
-      };
+
+      const isFirstCoach = role === "coach" && !state.users.some((user) => user.academyId === academy!.id && user.role === "coach" && user.isOwner && user.status !== "declined" && user.status !== "left");
+      const user = buildPendingAccount({
+        id: randomUUID(), academyId: academy.id, username, displayName, email, role,
+        passwordHash: credentials.hash, passwordSalt: credentials.salt,
+        createdAt: new Date().toISOString(), isFirstCoach, requestedSports,
+        ...(role === "player" ? { age } : {}),
+      });
       state.users.push(user);
-      recordAudit(state, user.id, isFirstCoach ? "academy.created" : role === "player" ? "player.profile.created" : "access.requested", user.id, { role, sports: role === "coach" ? requestedSports.join(", ") : null });
-      if (role === "player" && playerRecord) {
-        playerRecord.userId = user.id;
-        for (const sport of requestedSports) if (!(playerRecord.sports ?? []).includes(sport)) recordAudit(state, user.id, "player.sport.requested", playerRecord.id, { sport });
-      }
-      return { user };
+      recordAudit(state, user.id, isFirstCoach ? "academy.owner.registered" : "access.requested", user.id, {
+        role,
+        sports: requestedSports.join(", "),
+      });
+      return { user, needsVerification: true };
     });
 
     if ("error" in result) return NextResponse.json({ error: result.error }, { status: result.status });
-    const token = await issueToken(result.user.id, "verify", 86400000);
-    let emailSent = true;
-    try { await sendAuthEmail("verify", email, token); } catch { emailSent = false; }
-    return NextResponse.json({ user: publicUser(result.user), pending: result.user.status === "pending", emailSent, emailMessage: emailSent ? "" : "Account created, but email delivery failed. Check SMTP settings, then request a new verification email." }, { status: result.user.status === "pending" ? 202 : 201 });
-  } catch (error) { return errorResponse(error); }
+    let emailSent = !result.needsVerification;
+    let emailMessage = "";
+    if (result.needsVerification) {
+      const token = await issueToken(result.user.id, "verify", VERIFY_EXPIRY_MS);
+      try {
+        await sendAuthEmail("verify", email, token);
+        emailSent = true;
+      } catch {
+        emailSent = false;
+        emailMessage = "Your account request was saved, but verification email delivery failed. Correct the email configuration and request a new verification link.";
+      }
+    }
+    return NextResponse.json({
+      user: publicUser(result.user),
+      pending: result.user.status === "pending",
+      requiresApproval: !(result.user.role === "coach" && result.user.isOwner),
+      emailSent,
+      emailMessage,
+    }, { status: result.user.status === "pending" ? 202 : 201, headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    return errorResponse(error);
+  }
 }

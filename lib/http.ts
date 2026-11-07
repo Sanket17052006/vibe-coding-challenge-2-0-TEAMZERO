@@ -51,10 +51,14 @@ export async function readJsonBody(request: NextRequest): Promise<Record<string,
 
 export function errorResponse(error: unknown) {
   const name = error instanceof Error ? error.name : "";
+  const messageText = error instanceof Error ? error.message : "";
   const isDatabaseError = name.startsWith("Mongo") || name.includes("MongoDB");
-  const status = isDatabaseError ? 503 : authStatus(error);
+  const isAcademySetupError = /^(Multiple academy records|Academy-scoped records|Configured academy identity|ACADEMY_ID|Configure ACADEMY_)/.test(messageText);
+  const status = isDatabaseError || isAcademySetupError ? 503 : authStatus(error);
   const message = isDatabaseError
     ? "The academy database is unavailable. Check MongoDB Atlas status, the app server’s Network Access IP allowlist, and its connection settings."
+    : isAcademySetupError
+      ? "Single academy setup needs configuration or a reviewed data migration before this operation can continue."
     : status === 500 ? "The server could not complete this request. Check the database connection and try again." : status === 401 ? "Please log in to continue." : "You do not have permission to do that.";
   return NextResponse.json({ error: message }, { status, headers: { "Cache-Control": "no-store" } });
 }

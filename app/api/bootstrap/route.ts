@@ -4,6 +4,7 @@ import { getStore } from "../../../lib/store";
 import { errorResponse } from "../../../lib/http";
 import { Player, Session, Match, Trial } from "../../../lib/types";
 import { sportStatsForPlayer } from "../../../lib/readiness";
+import { scopeMatchesForViewer } from "../../../lib/match-access";
 
 function decorate(players: Player[], sessions: Session[], matches: Match[]) {
   return players.map((player) => {
@@ -57,11 +58,7 @@ export async function GET() {
       : user.role === "player"
         ? academySessions.filter((session) => session.status === "closed" && session.attendance.some((row) => row.playerId === user.playerId)).map((session) => ({ ...session, playerIds: [user.playerId!], attendance: session.attendance.filter((row) => row.playerId === user.playerId) }))
         : [];
-    const matches = user.role === "coach"
-      ? academyMatches.filter((match) => user.isOwner || !user.coachSports || user.coachSports.includes(match.sport))
-      : user.role === "player"
-        ? academyMatches.filter((match) => match.status === "played" && match.scores.some((score) => score.playerId === user.playerId)).map((match) => { const { lineup, ...matchView } = match; return { ...matchView, scores: match.scores.filter((score) => score.playerId === user.playerId) }; })
-        : [];
+    const matches = scopeMatchesForViewer(user, academyMatches);
     const trials = sortTrials(user.role === "coach"
       ? state.trials.filter((trial) => trial.academyId === academy.id && (user.isOwner || !user.coachSports || user.coachSports.includes(trial.sport)))
       : user.role === "scout"
@@ -71,10 +68,10 @@ export async function GET() {
       const member = state.users.find((entry) => entry.id === player.userId && entry.academyId === academy.id && entry.status === "active");
       return member ? (player.sportRequests ?? []).filter((request) => request.status === "pending" && (user.isOwner || !user.coachSports || user.coachSports.includes(request.sport))).map((request) => ({ playerId: player.id, playerName: player.name, sport: request.sport, requestId: request.id, requestedAt: request.requestedAt })) : [];
     }) : [];
-    const safeAcademy = { id: academy.id, name: academy.name, location: academy.location, code: user.role === "coach" ? academy.code : "", sports: academy.sports ?? [] };
+    const safeAcademy = { id: academy.id, name: academy.name, location: academy.location, sports: academy.sports ?? [] };
     return NextResponse.json({
       user: publicUser(user), academy: safeAcademy, players: scopedPlayers, sessions, matches, trials,
-      pendingUsers: user.role === "coach" ? state.users.filter((entry) => entry.academyId === academy.id && entry.status === "pending" && (entry.role !== "coach" || user.isOwner)).map(publicUser) : [],
+      pendingUsers: user.role === "coach" ? state.users.filter((entry) => entry.academyId === academy.id && entry.status === "pending" && (entry.role !== "coach" || user.isOwner)).map((entry) => ({ ...publicUser(entry), email: entry.email, emailVerified: !!entry.emailVerifiedAt, pendingPlayer: entry.pendingPlayer })) : [],
       pendingSportRequests,
       activeCoaches: user.role === "coach" ? state.users.filter((entry) => entry.academyId === academy.id && entry.role === "coach" && entry.status === "active").map(publicUser) : [],
     }, { headers: { "Cache-Control": "private, no-store" } });

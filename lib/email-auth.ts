@@ -36,7 +36,10 @@ export async function waitForMinimumDuration(startedAt: number, minimumMs: numbe
 }
 export const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
 function equalHash(a: string, b: string) { const left = Buffer.from(a, "hex"), right = Buffer.from(b, "hex"); return left.length === right.length && timingSafeEqual(left, right); }
-export const hasDuplicateEmail = (users: Store["users"], email: string, exceptId?: string) => users.some((user) => user.id !== exceptId && user.email?.toLowerCase() === email.toLowerCase());
+export const hasDuplicateEmail = (users: Store["users"], email: string, exceptId?: string) => {
+  const normalized = normalizeEmail(email);
+  return users.some((user) => user.id !== exceptId && !!user.email && normalizeEmail(user.email) === normalized);
+};
 export function newToken() { const token = randomBytes(32).toString("base64url"); return { token, hash: tokenHash(token) }; }
 
 export function consumeVerification(state: Store, token: string, now = Date.now()) {
@@ -46,6 +49,7 @@ export function consumeVerification(state: Store, token: string, now = Date.now(
   const user = state.users.find((entry) => entry.id === row.userId);
   if (!user) return false;
   row.usedAt = new Date(now).toISOString(); user.emailVerifiedAt = row.usedAt;
+  if (user.role === "coach" && user.isOwner && user.status === "pending") user.status = "active";
   return true;
 }
 

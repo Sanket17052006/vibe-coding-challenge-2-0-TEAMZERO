@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual, scrypt as scryptCallback } from "node:cryp
 import { promisify } from "node:util";
 import { getStore } from "./store";
 import { PublicUser, User } from "./types";
+import { canViewerManageSport } from "./match-access";
 import { emailAllowsLogin } from "./email-auth";
 
 const COOKIE_NAME = "excelrs_session";
@@ -18,7 +19,7 @@ function safeEqual(a: string, b: string) {
   return left.length === right.length && timingSafeEqual(left, right);
 }
 export function publicUser(user: User): PublicUser { const { id, username, displayName, role, status, playerId, coachSports, isOwner } = user; return { id, username, displayName, role, status, playerId, coachSports, isOwner }; }
-export function canManageSport(user: User, sport: string) { return user.isOwner === true || !user.coachSports || user.coachSports.includes(sport); }
+export function canManageSport(user: User, sport: string) { return canViewerManageSport(user, sport); }
 export async function verifyPassword(password: string, salt: string, expected: string) {
   const actual = (await scrypt(password, salt, 64)) as Buffer;
   return safeEqual(actual.toString("hex"), expected);
