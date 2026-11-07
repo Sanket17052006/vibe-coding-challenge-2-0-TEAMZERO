@@ -12,7 +12,7 @@ type Player = {
 type Session = { id: string; date: string; sport: string; status: "open" | "closed"; playerIds: string[]; attendance: { playerId: string; status: "Present" | "Absent" }[] };
 type Match = MatchRecord;
 
-export function PerformanceAnalytics({ sports, players, sessions, matches }: { sports: string[]; players: Player[]; sessions: Session[]; matches: Match[] }) {
+export function PerformanceAnalytics({ sports, players, sessions, matches, audience = "coach" }: { audience?: "coach" | "player"; sports: string[]; players: Player[]; sessions: Session[]; matches: Match[] }) {
   const [selectedSport, setSelectedSport] = useState("");
   const sport = sports.includes(selectedSport) ? selectedSport : sports[0] ?? "";
   const baseConfig = sport ? sportConfig(sport) : undefined;
@@ -31,7 +31,7 @@ export function PerformanceAnalytics({ sports, players, sessions, matches }: { s
       <AnalyticsStat label="PLAYED FIXTURES" value={analytics.playedMatches} hint={`${analytics.scheduledMatches} scheduled`} />
       <AnalyticsStat label="SESSION ATTENDANCE" value={analytics.attendanceRate === null ? "—" : `${analytics.attendanceRate}%`} hint={analytics.possibleMarks ? `${analytics.presentMarks} of ${analytics.possibleMarks} roster marks` : "No closed sessions"} />
       <AnalyticsStat label="AVG. COACH RATING" value={analytics.averageRating === null ? "—" : `${analytics.averageRating}/10`} hint={`${analytics.ratedScoreRows} recorded ratings`} />
-      <AnalyticsStat label="ACTIVE PLAYERS" value={analytics.activePlayers} hint="Assigned to this sport" />
+      <AnalyticsStat label={audience === "player" ? "YOUR SPORT PROFILE" : "ACTIVE PLAYERS"} value={analytics.activePlayers} hint="Assigned to this sport" />
     </div>
 
     <div className="analytics-grid">
@@ -58,7 +58,7 @@ export function PerformanceAnalytics({ sports, players, sessions, matches }: { s
     </div>
 
     <section className="panel analytics-panel analytics-player-panel">
-      <div className="panel-heading"><div><div className="eyebrow">PLAYER PERFORMANCE · {sport.toUpperCase()}</div><h3>Current active roster</h3></div><span className="subtle-count">{analytics.players.length} players</span></div>
+      <div className="panel-heading"><div><div className="eyebrow">PLAYER PERFORMANCE · {sport.toUpperCase()}</div><h3>{audience === "player" ? "Your performance" : "Current active roster"}</h3></div><span className="subtle-count">{analytics.players.length} players</span></div>
       {analytics.players.length ? <div className="table-wrap"><table className="analytics-table"><thead><tr><th>PLAYER</th><th>ATTENDANCE</th><th>PLAYED</th><th>{analytics.config.scoreLabel.toUpperCase()} · {format.toUpperCase()}</th><th>AVG. RATING</th><th>READINESS</th></tr></thead><tbody>{analytics.players.map((player) => <tr key={player.id}><td><div className="player-cell"><div className="player-initial">{player.name.split(" ").map((part) => part[0]).slice(0, 2).join("")}</div><div><b>{player.name}</b><small>{player.id}</small></div></div></td><td>{player.attendance === null ? <span className="analytics-muted">No sessions</span> : `${player.attendance}%`}</td><td>{player.matches}</td><td>{player.scoreAggregate === null ? <span className="analytics-muted">No score</span> : formatSportScore(sport, player.scoreAggregate, format)}</td><td>{player.averageRating === null ? <span className="analytics-muted">No rating</span> : <>{player.averageRating.toFixed(1)}/10 <small className="analytics-sample">({player.ratingCount})</small></>}</td><td><span className={`status ${player.readiness === "Ready" ? "status-ready" : "status-developing"}`}><i />{player.readiness.toUpperCase()}</span></td></tr>)}</tbody></table></div> : <div className="empty-state"><div className="empty-mark">↗</div><b>Roster is empty</b><p>Add active players to this sport to compare their real attendance and recorded match performance.</p></div>}
       <p className="analytics-footnote">{analytics.config.aggregation === "sum" ? `Player values are summed for ${format}.` : analytics.config.aggregation === "average" ? `Player values are averaged for ${format}.` : `Player value shows the ${analytics.config.scoreDirection === "lower" ? "lowest" : "highest"} recorded ${format} result.`} Different sports and formats may use unlike measures. Ratings are optional Coach assessments with their sample count shown. Readiness remains sport-wide and is based on at least 75% attendance and score rows in two played matches.</p>
     </section>

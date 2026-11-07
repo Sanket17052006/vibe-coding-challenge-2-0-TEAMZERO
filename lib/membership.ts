@@ -10,7 +10,6 @@ type PendingAccountInput = {
   passwordHash: string;
   passwordSalt: string;
   createdAt: string;
-  isFirstCoach: boolean;
   requestedSports: string[];
   age?: number;
 };
@@ -26,8 +25,9 @@ export function buildPendingAccount(input: PendingAccountInput): User {
     role: input.role,
     status: "pending",
     ...(input.role === "player" && input.age !== undefined ? { pendingPlayer: { age: input.age, sports: input.requestedSports } } : {}),
-    coachSports: input.role === "coach" && !input.isFirstCoach ? input.requestedSports : undefined,
-    isOwner: input.isFirstCoach,
+    coachSports: input.role === "coach" ? input.requestedSports : undefined,
+    scoutSports: input.role === "scout" ? input.requestedSports : undefined,
+    isOwner: false,
     passwordHash: input.passwordHash,
     passwordSalt: input.passwordSalt,
     createdAt: input.createdAt,

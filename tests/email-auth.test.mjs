@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { consumePasswordReset, consumeVerification, emailAllowsLogin, genericForgotPasswordResult, hasDuplicateEmail, newToken, normalizeEmail, tokenHash, validEmail } from "../lib/email-auth.ts";
+import { importTypeScript } from "./helpers/import-typescript.mjs";
+const { consumePasswordReset, consumeVerification, emailAllowsLogin, genericForgotPasswordResult, hasDuplicateEmail, newToken, normalizeEmail, tokenHash, validEmail } = await importTypeScript(new URL("../lib/email-auth.ts", import.meta.url));
 import { emailActionLink, extractAndClearEmailToken } from "../lib/email-link.ts";
 import { identityRateLimitKey, rateLimitByIdentity } from "../lib/rate-limit.ts";
 

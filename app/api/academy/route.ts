@@ -10,9 +10,9 @@ export async function GET(request: NextRequest) {
   const limited = await rateLimit(request, "academy-info", "", 60, 60 * 60 * 1000);
   if (limited) return limited;
   const state = await getStore();
-  const identity = resolveAcademyIdentity(state);
-  const academy = state.academies.find((entry) => entry.id === identity.id);
-  return NextResponse.json({ academy: { name: identity.name, location: identity.location, sports: academy?.sports ?? [] } }, { headers: { "Cache-Control": "public, max-age=60" } });
+  const existing = state.academies[0];
+  const identity = existing ? resolveAcademyIdentity(state) : null;
+  return NextResponse.json({ academy: identity ? { name: identity.name, location: identity.location, sports: existing.sports ?? [] } : null, registrationOpen: true, sports: SPORTS }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return errorResponse(error); }
 }
 

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createAuthEmailSender } from "../lib/email-auth.ts";
+import { importTypeScript } from "./helpers/import-typescript.mjs";
+const { createAuthEmailSender } = await importTypeScript(new URL("../lib/email-auth.ts", import.meta.url));
 import { emailActionLink } from "../lib/email-link.ts";
 import { createSmtpEmailSender, readSmtpConfiguration } from "../lib/smtp-email.ts";
 

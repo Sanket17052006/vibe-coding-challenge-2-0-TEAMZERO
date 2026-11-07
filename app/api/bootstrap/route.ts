@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { currentUser, publicUser } from "../../../lib/auth";
+import { currentUser, publicUser, canManageSport } from "../../../lib/auth";
 import { getStore } from "../../../lib/store";
 import { errorResponse } from "../../../lib/http";
 import { Player, Session, Match, Trial } from "../../../lib/types";
@@ -33,46 +33,47 @@ export async function GET() {
     const decorated = decorate(academyPlayers, academySessions, academyMatches);
     const offeredSports = academy.sports ?? [];
     const players = user.role === "coach"
-      ? decorated.filter((player) => user.isOwner || !user.coachSports || player.sports.some((sport) => user.coachSports?.includes(sport))).map((player) => {
-          if (user.isOwner || !user.coachSports) return player;
+      ? decorated.filter((player) => player.sports.some((sport) => canManageSport(user, sport))).map((player) => {
+          if (!user.coachSports) return player;
           const sports = player.sports.filter((sport) => user.coachSports?.includes(sport));
           const sportStats = player.sportStats.filter((entry) => sports.includes(entry.sport));
           const primary = sportStats[0];
           return { ...player, sports, sport: sports[0] ?? player.sport, sportStats, attendance: primary?.attendance ?? 0, matches: primary?.matches ?? 0, score: primary?.score ?? 0, status: sportStats.some((entry) => entry.status === "Ready") ? "Ready" as const : "Developing" as const };
         })
       : user.role === "scout"
-        ? decorated.filter((player) => player.academyId === academy.id && player.active && player.sportStats.some((stat) => offeredSports.includes(stat.sport) && stat.status === "Ready"))
+        ? decorated.filter((player) => player.academyId === academy.id && player.active && player.sportStats.some((stat) => offeredSports.includes(stat.sport) && (!user.scoutSports || user.scoutSports.includes(stat.sport)) && stat.status === "Ready"))
         : decorated.filter((player) => player.academyId === academy.id && player.id === user.playerId);
 
     const scopedPlayers = user.role === "coach" ? players
       : user.role === "scout" ? players.map((player) => {
-          const sportStats = player.sportStats.filter((entry) => offeredSports.includes(entry.sport) && entry.status === "Ready");
+          const sportStats = player.sportStats.filter((entry) => offeredSports.includes(entry.sport) && (!user.scoutSports || user.scoutSports.includes(entry.sport)) && entry.status === "Ready");
           const sports = sportStats.map((entry) => entry.sport);
-          const { sportRequests: _privateRequests, ...publicPlayer } = player;
-          return { ...publicPlayer, sports, sport: sports[0] ?? player.sport, sportStats };
+          const primary = sportStats[0];
+          return { id: player.id, name: player.name, active: true, sports, sport: sports[0] ?? player.sport, sportStats, status: "Ready", attendance: primary?.attendance ?? 0, matches: primary?.matches ?? 0, score: primary?.score ?? 0 };
         })
       : players.map(({ id, name, age, sport, sports, sportRequests, sportStats, active, attendance, matches: matchCount, score, status }) => ({ id, name, age, sport, sports, sportRequests, sportStats, active, attendance, matches: matchCount, score, status }));
 
     const sessions = user.role === "coach"
-      ? academySessions.filter((session) => user.isOwner || !user.coachSports || user.coachSports.includes(session.sport))
+      ? academySessions.filter((session) => canManageSport(user, session.sport))
       : user.role === "player"
         ? academySessions.filter((session) => session.status === "closed" && session.attendance.some((row) => row.playerId === user.playerId)).map((session) => ({ ...session, playerIds: [user.playerId!], attendance: session.attendance.filter((row) => row.playerId === user.playerId) }))
         : [];
-    const matches = scopeMatchesForViewer(user, academyMatches);
+    const matches = scopeMatchesForViewer(user, academyMatches, scopedPlayers);
     const trials = sortTrials(user.role === "coach"
-      ? state.trials.filter((trial) => trial.academyId === academy.id && (user.isOwner || !user.coachSports || user.coachSports.includes(trial.sport)))
+      ? state.trials.filter((trial) => trial.academyId === academy.id && (canManageSport(user, trial.sport)))
       : user.role === "scout"
         ? state.trials.filter((trial) => trial.academyId === academy.id && trial.scoutId === user.id)
         : state.trials.filter((trial) => trial.academyId === academy.id && trial.playerId === user.playerId));
     const pendingSportRequests = user.role === "coach" ? academyPlayers.flatMap((player) => {
       const member = state.users.find((entry) => entry.id === player.userId && entry.academyId === academy.id && entry.status === "active");
-      return member ? (player.sportRequests ?? []).filter((request) => request.status === "pending" && (user.isOwner || !user.coachSports || user.coachSports.includes(request.sport))).map((request) => ({ playerId: player.id, playerName: player.name, sport: request.sport, requestId: request.id, requestedAt: request.requestedAt })) : [];
+      return member ? (player.sportRequests ?? []).filter((request) => request.status === "pending" && (canManageSport(user, request.sport))).map((request) => ({ playerId: player.id, playerName: player.name, sport: request.sport, requestId: request.id, requestedAt: request.requestedAt })) : [];
     }) : [];
     const safeAcademy = { id: academy.id, name: academy.name, location: academy.location, sports: academy.sports ?? [] };
     return NextResponse.json({
       user: publicUser(user), academy: safeAcademy, players: scopedPlayers, sessions, matches, trials,
-      pendingUsers: user.role === "coach" ? state.users.filter((entry) => entry.academyId === academy.id && entry.status === "pending" && (entry.role !== "coach" || user.isOwner)).map((entry) => ({ ...publicUser(entry), email: entry.email, emailVerified: !!entry.emailVerifiedAt, pendingPlayer: entry.pendingPlayer })) : [],
+      pendingUsers: user.role === "coach" ? state.users.filter((entry) => entry.academyId === academy.id && entry.status === "pending" && entry.role !== "coach" && (entry.role !== "player" || (entry.pendingPlayer?.sports ?? []).every(sport => canManageSport(user, sport)))).map((entry) => ({ ...publicUser(entry), email: entry.email, emailVerified: !!entry.emailVerifiedAt, pendingPlayer: entry.pendingPlayer })) : [],
       pendingSportRequests,
+      coaches: user.role === "coach" ? state.users.filter(entry => entry.academyId === academy.id && entry.role === "coach").map(entry => ({ ...publicUser(entry), emailVerified: !!entry.emailVerifiedAt || !entry.email })) : [],
       activeCoaches: user.role === "coach" ? state.users.filter((entry) => entry.academyId === academy.id && entry.role === "coach" && entry.status === "active").map(publicUser) : [],
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error); }

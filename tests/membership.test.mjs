@@ -12,7 +12,7 @@ function account(role, overrides = {}) {
 }
 
 test("Coach, Player, and Scout registrations all start pending under the same academy", () => {
-  const owner = account("coach", { id: "owner", isFirstCoach: true, requestedSports: [] });
+  const owner = account("coach", { id: "first-registrant", requestedSports: ["Football", "Cricket"] });
   const coach = account("coach", { id: "coach-2", isFirstCoach: false });
   const player = account("player");
   const scout = account("scout");
@@ -22,7 +22,9 @@ test("Coach, Player, and Scout registrations all start pending under the same ac
     assert.equal(created.academyId, "academy-fixed");
     assert.equal(created.email, "aarav@example.com");
   }
-  assert.equal(owner.isOwner, true);
+  assert.equal(owner.isOwner, false);
+  assert.deepEqual(owner.coachSports, ["Football", "Cricket"]);
+  assert.deepEqual(scout.scoutSports, ["Football"]);
   assert.equal(coach.isOwner, false);
   assert.deepEqual(player.pendingPlayer, { age: 16, sports: ["Football"] });
   assert.equal("playerId" in player, false);

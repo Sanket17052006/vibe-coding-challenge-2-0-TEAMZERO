@@ -3,7 +3,7 @@ export type AttendanceStatus = "Present" | "Absent";
 
 export type Academy = { id: string; name: string; location: string; code?: string; sports?: string[]; createdAt: string };
 export type PendingPlayerDetails = { age: number; sports: string[] };
-export type User = { id: string; academyId: string; username: string; displayName: string; role: Role; status: "active" | "pending" | "declined" | "left"; email?: string; emailVerifiedAt?: string; pendingPlayer?: PendingPlayerDetails; playerId?: string; coachSports?: string[]; isOwner?: boolean; sessionVersion?: number; passwordHash: string; passwordSalt: string; createdAt: string };
+export type User = { id: string; academyId: string; username: string; displayName: string; role: Role; status: "active" | "pending" | "declined" | "left"; email?: string; emailVerifiedAt?: string; pendingPlayer?: PendingPlayerDetails; playerId?: string; coachSports?: string[]; scoutSports?: string[]; isOwner?: boolean; sessionVersion?: number; passwordHash: string; passwordSalt: string; createdAt: string };
 export type SportRequest = { id: string; sport: string; status: "pending" | "approved" | "declined"; requestedAt: string; decidedAt?: string; decidedBy?: string };
 export type Player = { id: string; academyId: string; name: string; age: number; sport: string; sports?: string[]; sportRequests?: SportRequest[]; active: boolean; userId?: string; createdAt: string };
 export type Attendance = { playerId: string; status: AttendanceStatus };
@@ -15,5 +15,5 @@ export type Match = { id: string; academyId: string; date: string; time?: string
 export type Trial = { id: string; academyId: string; playerId: string; sport: string; scoutId: string; scoutName: string; status: "active" | "withdrawn"; createdAt: string; updatedAt?: string; withdrawnAt?: string };
 export type AuditEvent = { id: string; academyId: string; actorId: string; action: string; targetId: string; details: Record<string, string | number | boolean | null>; createdAt: string };
 export type AuthToken = { userId: string; hash: string; expiresAt: string; usedAt?: string; kind: "verify" | "reset" };
-export type Store = { academies: Academy[]; users: User[]; players: Player[]; sessions: Session[]; matches: Match[]; trials: Trial[]; auditEvents: AuditEvent[]; authTokens?: AuthToken[]; demoSeedVersion?: string };
-export type PublicUser = Pick<User, "id" | "username" | "displayName" | "role" | "status" | "playerId" | "coachSports" | "isOwner">;
+export type Store = { academies: Academy[]; users: User[]; players: Player[]; sessions: Session[]; matches: Match[]; trials: Trial[]; auditEvents: AuditEvent[]; authTokens?: AuthToken[]; academySetup?: { id: string }; demoSeedVersion?: string };
+export type PublicUser = Pick<User, "id" | "username" | "displayName" | "role" | "status" | "playerId" | "coachSports" | "scoutSports" | "isOwner">;

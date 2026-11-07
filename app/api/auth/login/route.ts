@@ -14,10 +14,11 @@ export async function POST(request: NextRequest) {
   const password = String(body.password || "");
   if (!username || !password) return NextResponse.json({ error: "Enter your username and password." }, { status: 400 });
   const user = (await getStore()).users.find((entry) => entry.username.toLowerCase() === username);
-  if (!user || user.status !== "active" || !(await verifyPassword(password, user.passwordSalt, user.passwordHash))) {
+  if (!user || !(await verifyPassword(password, user.passwordSalt, user.passwordHash))) {
     return NextResponse.json({ error: "Username or password is incorrect. If your account is pending, ask the coach to approve it." }, { status: 401, headers: { "Cache-Control": "no-store" } });
   }
   if (user.email && !user.emailVerifiedAt) return NextResponse.json({ error: "Verify your email before signing in. You can request another verification email from the sign-in page." }, { status: 403, headers: { "Cache-Control": "no-store" } });
+  if (user.status !== "active") return NextResponse.json({ error: user.status === "pending" ? "Your email is verified. Your Player or Scout account is waiting for Coach approval." : "This account does not have active access. Contact the academy Coach." }, { status: 401, headers: { "Cache-Control": "no-store" } });
   await setLoginCookie(user);
   return NextResponse.json({ user: publicUser(user) });
   } catch (error) { return errorResponse(error); }

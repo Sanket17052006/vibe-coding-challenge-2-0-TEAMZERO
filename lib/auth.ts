@@ -18,7 +18,7 @@ function safeEqual(a: string, b: string) {
   const left = Buffer.from(a); const right = Buffer.from(b);
   return left.length === right.length && timingSafeEqual(left, right);
 }
-export function publicUser(user: User): PublicUser { const { id, username, displayName, role, status, playerId, coachSports, isOwner } = user; return { id, username, displayName, role, status, playerId, coachSports, isOwner }; }
+export function publicUser(user: User): PublicUser { const { id, username, displayName, role, status, playerId, coachSports, scoutSports, isOwner } = user; return { id, username, displayName, role, status, playerId, coachSports, scoutSports, isOwner }; }
 export function canManageSport(user: User, sport: string) { return canViewerManageSport(user, sport); }
 export async function verifyPassword(password: string, salt: string, expected: string) {
   const actual = (await scrypt(password, salt, 64)) as Buffer;

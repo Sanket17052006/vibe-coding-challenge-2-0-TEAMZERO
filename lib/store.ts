@@ -46,6 +46,8 @@ function normalizeStore(value: unknown): Store {
     trials: Array.isArray(raw.trials) ? raw.trials.map((trial) => ({ ...trial, academyId: trial.academyId ?? legacyAcademyId ?? "", status: trial.status === "withdrawn" ? "withdrawn" : "active" })) : [],
     auditEvents: Array.isArray(raw.auditEvents) ? raw.auditEvents.map((event) => ({ ...event, academyId: event.academyId ?? legacyAcademyId ?? "" })) : [],
     authTokens: Array.isArray(raw.authTokens) ? raw.authTokens : [],
+    ...(raw.academySetup ? { academySetup: raw.academySetup } : {}),
+    ...(raw.demoSeedVersion ? { demoSeedVersion: raw.demoSeedVersion } : {}),
   } as Store;
   assertSingleAcademyState(normalized);
   return normalized;

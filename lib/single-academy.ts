@@ -1,40 +1,64 @@
-import type { Academy, Store } from "./types";
+import { randomUUID } from "node:crypto";
+import type { Academy, Store, User } from "./types";
 
 export type AcademyConfiguration = Pick<Academy, "id" | "name" | "location">;
+type AcademyState = Pick<Store, "academies" | "users" | "players" | "sessions" | "matches" | "trials" | "auditEvents" | "academySetup">;
 
-export function assertSingleAcademyState(state: Pick<Store, "academies" | "users" | "players" | "sessions" | "matches" | "trials" | "auditEvents">): void {
+export function assertSingleAcademyState(state: AcademyState): void {
   if (state.academies.length > 1) throw new Error("Multiple academy records require a reviewed migration before single-academy mode can run.");
-  const ids = new Set<string>(state.academies.map((academy) => academy.id));
+  const ids = new Set<string>(state.academies.map(academy => academy.id));
+  if (state.academySetup?.id) ids.add(state.academySetup.id);
   for (const entry of [...state.users, ...state.players, ...state.sessions, ...state.matches, ...state.trials, ...state.auditEvents]) {
     if (entry.academyId) ids.add(entry.academyId);
   }
   if (ids.size > 1) throw new Error("Academy-scoped records refer to multiple academy identities; a reviewed migration is required.");
 }
 
-export function resolveAcademyIdentity(
-  state: Pick<Store, "academies" | "users" | "players" | "sessions" | "matches" | "trials" | "auditEvents">,
-  env: Record<string, string | undefined> = process.env,
-): AcademyConfiguration {
+export function resolveAcademyIdentity(state: AcademyState, env: Record<string, string | undefined> = process.env): AcademyConfiguration {
   assertSingleAcademyState(state);
   const existing = state.academies[0];
-  const configuredId = env.ACADEMY_ID?.trim();
-  if (existing) {
-    if (configuredId && configuredId !== existing.id) throw new Error("ACADEMY_ID does not match the existing academy identity.");
-    return { id: existing.id, name: existing.name, location: existing.location };
-  }
-
-  const id = configuredId;
-  const name = env.ACADEMY_NAME?.trim();
-  const location = env.ACADEMY_LOCATION?.trim();
-  if (!id || !name || !location) throw new Error("Configure ACADEMY_ID, ACADEMY_NAME, and ACADEMY_LOCATION before registering the first account.");
-  if (id.length > 100 || name.length > 100 || location.length > 120) throw new Error("The configured academy identity exceeds supported lengths.");
-  const scopedRecords = [ ...state.users, ...state.players, ...state.sessions, ...state.matches, ...state.trials, ...state.auditEvents ];
-  if (scopedRecords.some((entry) => !entry.academyId)) throw new Error("Legacy records without an academy identity require a reviewed migration before single-academy setup.");
-  const legacyIds = new Set(scopedRecords.map((entry) => entry.academyId).filter(Boolean));
-  if (legacyIds.size && (legacyIds.size !== 1 || !legacyIds.has(id))) throw new Error("Configured academy identity does not match existing records; a reviewed migration is required.");
+  if (existing) return { id: existing.id, name: existing.name, location: existing.location };
+  const records = [...state.users, ...state.players, ...state.sessions, ...state.matches, ...state.trials, ...state.auditEvents];
+  if (records.some(entry => !entry.academyId)) throw new Error("Legacy records without an academy identity require a reviewed migration before single-academy setup.");
+  const legacyId = records.find(entry => entry.academyId)?.academyId;
+  const id = state.academySetup?.id || legacyId;
+  if (!id) throw new Error("Academy registration identity has not been reserved yet.");
+  const name = env.ACADEMY_NAME?.trim() || "KhelGrid Academy";
+  const location = env.ACADEMY_LOCATION?.trim() || "";
+  if (name.length > 100 || location.length > 120) throw new Error("The configured academy display details exceed supported lengths.");
   return { id, name, location };
+}
+
+/** Call only inside mutateStore; reserve an ID without creating an academy or owner. */
+export function reserveAcademyIdentity(state: Store): string {
+  assertSingleAcademyState(state);
+  if (state.academies[0]) return state.academies[0].id;
+  if (!state.academySetup) {
+    const records = [...state.users, ...state.players, ...state.sessions, ...state.matches, ...state.trials, ...state.auditEvents];
+    if (records.some(entry => !entry.academyId)) throw new Error("Legacy records without an academy identity require a reviewed migration before single-academy setup.");
+    state.academySetup = { id: records.find(entry => entry.academyId)?.academyId || randomUUID() };
+  }
+  return state.academySetup.id;
 }
 
 export function configuredAcademyRecord(identity: AcademyConfiguration, sports: string[] = []): Academy {
   return { ...identity, sports: [...new Set(sports)], createdAt: new Date().toISOString() };
+}
+
+/** Verification and this initialization share one revision-checked mutation. */
+export function activateVerifiedCoach(state: Store, user: User, env: Record<string, string | undefined> = process.env): void {
+  if (user.role !== "coach" || user.status !== "pending" || !user.emailVerifiedAt) return;
+  const id = reserveAcademyIdentity(state);
+  if (user.academyId !== id) throw new Error("Academy-scoped records refer to multiple academy identities; a reviewed migration is required.");
+  let academy = state.academies[0];
+  if (!academy) {
+    academy = configuredAcademyRecord(resolveAcademyIdentity(state, env), user.coachSports ?? []);
+    state.academies.push(academy);
+  }
+  academy.sports = [...new Set([...(academy.sports ?? []), ...(user.coachSports ?? [])])];
+  // Legacy active Coaches keep their ownership; a pending/unverified registration cannot reserve it.
+  const activeCoaches = state.users.filter(entry => entry.academyId === id && entry.role === "coach" && entry.status === "active");
+  const owner = activeCoaches.find(entry => entry.isOwner) ?? activeCoaches.sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0] ?? user;
+  for (const coach of state.users.filter(entry => entry.academyId === id && entry.role === "coach")) coach.isOwner = coach.id === owner.id;
+  user.status = "active";
 }

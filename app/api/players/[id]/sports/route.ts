@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { currentUser, requireRole } from "../../../../../lib/auth";
+import { canManageSport, requireRole } from "../../../../../lib/auth";
 import { badRequest, errorResponse, readJsonBody } from "../../../../../lib/http";
 import { mutateStore, recordAudit } from "../../../../../lib/store";
 import { randomUUID } from "node:crypto";
@@ -52,7 +52,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (!member || !player.active) return { error: "The Player account is no longer active. Ask them to rejoin before approving this sport request.", status: 409 };
       const academy = state.academies.find((entry) => entry.id === actor.academyId);
       if (!(academy?.sports ?? []).includes(req.sport)) return { error: "The academy no longer offers this sport.", status: 409 };
-      if (!actor.isOwner && actor.coachSports && !actor.coachSports.includes(req.sport)) return { error: "You can only decide requests for sports assigned to you.", status: 403 };
+      if (!canManageSport(actor, req.sport)) return { error: "You can only decide requests for sports assigned to you.", status: 403 };
       req.status = body.status;
       req.decidedAt = new Date().toISOString();
       req.decidedBy = actor.id;

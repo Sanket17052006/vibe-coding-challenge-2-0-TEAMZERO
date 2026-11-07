@@ -15,6 +15,7 @@ export async function POST(request: NextRequest) {
     const sport = typeof body.sport === "string" ? body.sport.trim() : "";
     if (!playerId || !sport) return badRequest("Choose a player and sport for the trial call.");
 
+    if (actor.scoutSports && !actor.scoutSports.includes(sport)) return NextResponse.json({ error: "Choose a sport within your Scout interests." }, { status: 403 });
     const result = await mutateStore((state) => {
       const player = state.players.find((entry) => entry.academyId === actor.academyId && entry.id === playerId);
       if (!player) return { error: "Player not found.", status: 404 };

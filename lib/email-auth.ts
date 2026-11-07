@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { domainToASCII } from "node:url";
 import type { Store } from "./types";
+import { activateVerifiedCoach } from "./single-academy";
 import type { OutgoingEmail } from "./smtp-email";
 
 export function normalizeEmail(value: unknown) {
@@ -45,11 +46,11 @@ export function newToken() { const token = randomBytes(32).toString("base64url")
 export function consumeVerification(state: Store, token: string, now = Date.now()) {
   const hash = tokenHash(token);
   const row = (state.authTokens ?? []).find((entry) => entry.kind === "verify" && equalHash(entry.hash, hash) && !entry.usedAt);
-  if (!row || Date.parse(row.expiresAt) <= now) return false;
+  if (!row || !Number.isFinite(Date.parse(row.expiresAt)) || Date.parse(row.expiresAt) <= now) return false;
   const user = state.users.find((entry) => entry.id === row.userId);
   if (!user) return false;
   row.usedAt = new Date(now).toISOString(); user.emailVerifiedAt = row.usedAt;
-  if (user.role === "coach" && user.isOwner && user.status === "pending") user.status = "active";
+  activateVerifiedCoach(state, user);
   return true;
 }
 
