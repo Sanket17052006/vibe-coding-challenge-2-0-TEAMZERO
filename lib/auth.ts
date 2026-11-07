@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual, scrypt as scryptCallback } from "node:cryp
 import { promisify } from "node:util";
 import { getStore } from "./store";
 import { PublicUser, User } from "./types";
+import { emailAllowsLogin } from "./email-auth";
 
 const COOKIE_NAME = "excelrs_session";
 const scrypt = promisify(scryptCallback);
@@ -37,7 +38,7 @@ export async function currentUser(): Promise<User | null> {
   try {
     const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { id: string; version?: number; exp: number };
     if (decoded.exp < Date.now()) return null;
-    const user = (await getStore()).users.find((entry) => entry.id === decoded.id && entry.status === "active" && (entry.sessionVersion ?? 0) === (decoded.version ?? 0));
+    const user = (await getStore()).users.find((entry) => entry.id === decoded.id && entry.status === "active" && emailAllowsLogin(entry) && (entry.sessionVersion ?? 0) === (decoded.version ?? 0));
     return user ?? null;
   } catch { return null; }
 }

@@ -1,15 +1,20 @@
+import type { NextRequest } from "next/server";
 import { createHmac } from "node:crypto";
-import { NextRequest, NextResponse } from "next/server";
-import { getMongoDatabase } from "./store";
 
 type RateBucket = { _id: string; count: number; expiresAt: Date };
 const localBuckets = new Map<string, RateBucket>();
 let ttlIndex: Promise<string> | null = null;
 
-function digest(scope: string, identity: string) {
-  return createHmac("sha256", process.env.SESSION_SECRET || "khelgrid-local-rate-limit")
-    .update(`${scope}:${identity}`)
-    .digest("hex");
+function rateLimitSecret() {
+  const configured = process.env.SESSION_SECRET;
+  if (process.env.NODE_ENV === "production" && (!configured || configured.length < 32 || configured.startsWith("replace-"))) {
+    throw new Error("Set a unique SESSION_SECRET with at least 32 characters in production.");
+  }
+  return configured || "khelgrid-local-rate-limit";
+}
+
+export function identityRateLimitKey(scope: string, identity: string, secret = rateLimitSecret()) {
+  return createHmac("sha256", secret).update(`${scope}:${identity}`).digest("hex");
 }
 
 function localLimit(key: string, limit: number, windowMs: number) {
@@ -27,17 +32,16 @@ function localLimit(key: string, limit: number, windowMs: number) {
 
 function limitedResponse(expiresAt: Date) {
   const retryAfter = Math.max(1, Math.ceil((expiresAt.getTime() - Date.now()) / 1000));
-  return NextResponse.json(
+  return Response.json(
     { error: "Too many requests. Wait a little and try again." },
     { status: 429, headers: { "Retry-After": String(retryAfter), "Cache-Control": "no-store" } },
   );
 }
 
-export async function rateLimit(request: NextRequest, scope: string, identity: string, limit: number, windowMs: number) {
-  const clientIp = request.headers.get("x-real-ip") || request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  const key = digest(scope, `${clientIp}:${identity}`);
+async function rateLimitKey(key: string, limit: number, windowMs: number) {
   if (process.env.NODE_ENV !== "production") return localLimit(key, limit, windowMs);
   if (!process.env.MONGODB_URI) throw new Error("MongoDB is required for rate limiting in production.");
+  const { getMongoDatabase } = await import("./store");
   const database = await getMongoDatabase();
   const buckets = database.collection<RateBucket>("rateLimits");
   if (!ttlIndex) ttlIndex = buckets.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }).catch((error) => { ttlIndex = null; throw error; });
@@ -63,4 +67,14 @@ export async function rateLimit(request: NextRequest, scope: string, identity: s
   }
   if (!bucket) throw new Error("Rate limit counter could not be updated.");
   return bucket.count <= limit ? null : limitedResponse(bucket.expiresAt);
+}
+
+export async function rateLimit(request: NextRequest, scope: string, identity: string, limit: number, windowMs: number) {
+  const clientIp = request.headers.get("x-real-ip") || request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  return rateLimitKey(identityRateLimitKey(scope, `${clientIp}:${identity}`), limit, windowMs);
+}
+
+/** Apply a shared limit to an identity independently of the caller's IP address. */
+export async function rateLimitByIdentity(_request: NextRequest, scope: string, identity: string, limit: number, windowMs: number) {
+  return rateLimitKey(identityRateLimitKey(scope, identity), limit, windowMs);
 }

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hashPassword, getStore, mutateStore, recordAudit } from "../../../../lib/store";
-import { setLoginCookie, publicUser, verifyPassword } from "../../../../lib/auth";
+import { publicUser, verifyPassword } from "../../../../lib/auth";
 import { User } from "../../../../lib/types";
 import { randomUUID } from "node:crypto";
 import { badRequest, errorResponse, readJsonBody } from "../../../../lib/http";
 import { rateLimit } from "../../../../lib/rate-limit";
 import { isSupportedSport } from "../../../../lib/sports";
+import { normalizeEmail, validEmail, hasDuplicateEmail, issueToken, sendAuthEmail } from "../../../../lib/email-auth";
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,6 +18,8 @@ export async function POST(request: NextRequest) {
     const username = String(body.username || "").trim().toLowerCase();
     const displayName = String(body.displayName || "").trim();
     const password = String(body.password || "");
+    const email = normalizeEmail(body.email);
+    if (!validEmail(email)) return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
     const role = String(body.role || "");
     const academyMode = role === "coach" ? String(body.academyMode || "create") : "join";
     if (!/^[a-z0-9._-]{3,32}$/.test(username) || displayName.length < 2 || displayName.length > 60 || password.length < 8 || password.length > 128) {
@@ -32,6 +35,7 @@ export async function POST(request: NextRequest) {
     const requestedSports = Array.isArray(body.sports) ? [...new Set(body.sports.map((value: unknown) => String(value).trim()))] : [];
     if (role === "player" && !playerId) return NextResponse.json({ error: "Ask your Coach to add you first, then sign up with the Player ID from your record." }, { status: 400 });
     const current = await getStore();
+    if (hasDuplicateEmail(current.users, email) && !current.users.some((user) => user.username.toLowerCase() === username && user.status === "left" && user.email?.toLowerCase() === email)) return NextResponse.json({ error: "That email address is already in use." }, { status: 409 });
     const previousAccount = current.users.find((user) => user.username.toLowerCase() === username);
     const rejoining = previousAccount?.status === "left";
     if (previousAccount && !rejoining) return NextResponse.json({ error: "That username is already taken." }, { status: 409 });
@@ -48,12 +52,16 @@ export async function POST(request: NextRequest) {
 
     const credentials = await hashPassword(password);
     const result = await mutateStore((state) => {
+      if (hasDuplicateEmail(state.users, email, previousAccount?.id)) return { error: "That email address is already in use.", status: 409 };
       const existing = state.users.find((user) => user.username.toLowerCase() === username);
       if (existing) {
         if (existing.status !== "left" || !rejoining || existing.role !== role || existing.academyId !== targetAcademy?.id || !(existing.passwordSalt === previousAccount?.passwordSalt && existing.passwordHash === previousAccount?.passwordHash) || (role === "player" && playerId && existing.playerId !== playerId)) return { error: "That username is already taken or the account details are incorrect.", status: 409 };
         const academy = state.academies.find((entry) => entry.id === existing.academyId && entry.code === academyCode);
         if (!academy) return { error: "Enter the code for the academy this account previously belonged to.", status: 400 };
         existing.status = "pending";
+        if (existing.email && existing.email.toLowerCase() !== email && state.users.some((user) => user.id !== existing.id && user.email?.toLowerCase() === email)) return { error: "That email address is already in use.", status: 409 };
+        existing.email = email;
+        existing.emailVerifiedAt = undefined;
         existing.sessionVersion = (existing.sessionVersion ?? 0) + 1;
         if (role === "coach") existing.coachSports = requestedSports;
         const player = existing.playerId && state.players.find((entry) => entry.academyId === academy.id && entry.id === existing.playerId);
@@ -99,6 +107,7 @@ export async function POST(request: NextRequest) {
       const isFirstCoach = role === "coach" && createsAcademy;
       const user: User = {
         id: randomUUID(), academyId: academy!.id, username, displayName, role: role as User["role"],
+        email,
         status: isFirstCoach || role === "player" && !playerId ? "active" : "pending",
         playerId: role === "player" ? playerRecord?.id : undefined,
         coachSports: role === "coach" && !isFirstCoach ? requestedSports : undefined,
@@ -115,7 +124,9 @@ export async function POST(request: NextRequest) {
     });
 
     if ("error" in result) return NextResponse.json({ error: result.error }, { status: result.status });
-    if (result.user.status === "active") await setLoginCookie(result.user);
-    return NextResponse.json({ user: publicUser(result.user), pending: result.user.status === "pending" }, { status: result.user.status === "pending" ? 202 : 201 });
+    const token = await issueToken(result.user.id, "verify", 86400000);
+    let emailSent = true;
+    try { await sendAuthEmail("verify", email, token); } catch { emailSent = false; }
+    return NextResponse.json({ user: publicUser(result.user), pending: result.user.status === "pending", emailSent, emailMessage: emailSent ? "" : "Account created, but email delivery failed. Check SMTP settings, then request a new verification email." }, { status: result.user.status === "pending" ? 202 : 201 });
   } catch (error) { return errorResponse(error); }
 }
