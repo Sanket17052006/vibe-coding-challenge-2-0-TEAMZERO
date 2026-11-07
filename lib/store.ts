@@ -2,8 +2,10 @@ import { randomBytes, randomUUID, scrypt as scryptCallback } from "node:crypto";
 import { promisify } from "node:util";
 import { MongoClient } from "mongodb";
 import { AuditEvent, Store } from "./types";
+import { isLocalMongoUri } from "./local-mongo";
 import { readFile, mkdir, writeFile, rename } from "node:fs/promises";
 import path from "node:path";
+export { isLocalMongoUri } from "./local-mongo";
 
 const scrypt = promisify(scryptCallback);
 const DATA_FILE = path.join(process.cwd(), "data", "excelrs.json");
@@ -19,7 +21,7 @@ export async function hashPassword(password: string, salt = randomBytes(16).toSt
 }
 
 export async function createEmptyStore(): Promise<Store> {
-  return { academies: [], users: [], players: [], sessions: [], matches: [], trials: [], auditEvents: [] };
+  return { academies: [], users: [], players: [], sessions: [], matches: [], trials: [], auditEvents: [], authTokens: [] };
 }
 
 function normalizeStore(value: unknown): Store {
@@ -43,6 +45,7 @@ function normalizeStore(value: unknown): Store {
     matches: raw.matches.map((match) => ({ ...match, academyId: match.academyId ?? legacyAcademyId ?? "" })),
     trials: Array.isArray(raw.trials) ? raw.trials.map((trial) => ({ ...trial, academyId: trial.academyId ?? legacyAcademyId ?? "", status: trial.status === "withdrawn" ? "withdrawn" : "active" })) : [],
     auditEvents: Array.isArray(raw.auditEvents) ? raw.auditEvents.map((event) => ({ ...event, academyId: event.academyId ?? legacyAcademyId ?? "" })) : [],
+    authTokens: Array.isArray(raw.authTokens) ? raw.authTokens : [],
   } as Store;
 }
 

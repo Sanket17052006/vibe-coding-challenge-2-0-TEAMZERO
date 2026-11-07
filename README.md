@@ -1,190 +1,237 @@
-<div align="center">
-  <img src="public/khelgrid-readme-hero.svg" alt="KhelGrid sports desk, arranged over an illuminated pitch" width="100%" />
-  <br />
-  <h1>KHELGRID · SPORTS DESK</h1>
-  <p><strong>Every session. Every score. Every next play.</strong></p>
-  <p>A field-ready, mobile-friendly workspace for grassroots sports academies.</p>
-  <p>
-    <img alt="Next.js" src="https://img.shields.io/badge/Next.js-15-black?logo=next.js" />
-    <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white" />
-    <img alt="MongoDB" src="https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white" />
-    <img alt="Responsive web app" src="https://img.shields.io/badge/field--ready-responsive-D4FF32?labelColor=202820" />
-  </p>
-  <p><a href="#get-on-the-field">Get started</a> · <a href="#how-the-desk-works">Explore the workflow</a> · <a href="#architecture">Architecture</a></p>
-</div>
+﻿# KhelGrid — Sports Desk
 
----
+KhelGrid is a mobile-friendly operations workspace for grassroots sports academies. It helps coaches keep player records, attendance, fixtures, results, ratings, and trial readiness in one place.
 
-## The game plan
+## Problem and objectives
 
-KhelGrid gives a coach one practical place to manage a real academy: build a player register, take attendance, schedule fixtures, record results and ratings, and see who is ready for a trial. The interface works across desktop and mobile browsers.
+Small academies often coordinate training and player progress across paper sheets and chat messages. KhelGrid provides a shared record for academy staff and players while keeping academy access, coach responsibilities, and scout views scoped by role.
 
-One deployment can host **many independent academies**. A coach can create an academy and become its owner, or request to join another academy using its code. Scouts request academy access by code and wait for Coach approval. Players join with an academy code and a Coach-created Player ID, then request the offered sports they want to join. A Coach must approve the player account and each sport request before they become active. Records and permissions are scoped to the selected academy.
+The project focuses on:
 
-KhelGrid starts with an empty workspace. The app itself does not seed fictional players, grounds, match results, or login details. An optional local-only demo seed is documented under **Get on the field**; it writes to a separate local database and is not part of a deployment.
+- A practical player register with stable Player IDs.
+- Attendance and match records that support a transparent readiness rule.
+- Separate Coach, Player, and Scout permissions.
+- Approval workflows for academy membership and sport requests.
+- Username/password authentication with email verification and password recovery.
 
-## How the desk works
+## Features
 
-| 01 · BUILD THE ROSTER | 02 · RUN TRAINING | 03 · PLAY THE FIXTURE | 04 · FIND THE NEXT PLAY |
-|:--|:--|:--|:--|
-| Add real players, assign a stable Player ID, and choose one or more academy sports. | Open a dated session for one sport. Mark every rostered player Present or Absent, then close the sheet. | Schedule an opponent and venue. Record player scores against a closed same-day session; only present players can be scored, and the final team result is optional. | Readiness is calculated per sport. Scouts see eligible players with aggregate scores and average Coach ratings, and can call them for a trial. Each player sees only their own history and trial calls. |
+- Multi-academy accounts with academy codes and an academy owner.
+- Coach-managed players, sports, attendance sessions, fixtures, results, and ratings.
+- Player views limited to their own records and trial calls.
+- Scout views limited to Ready players and trial shortlist actions.
+- Coach approval for pending Coach, Player, Scout, and sport requests.
+- Per-sport readiness: at least 75% attendance in closed sessions where the player was rostered, plus score rows in at least two played matches.
+- Email verification for new accounts, with 24-hour single-use links.
+- Forgot-password and reset-password flows, with 30-minute single-use links.
+- Session invalidation after a password reset or account access change.
+- Responsive KhelGrid dashboard and authentication pages.
 
-### A clear path for every role
+A trial call is an in-app shortlist decision. It does not schedule an event or send an external notification. Attendance, results, and ratings are entered by a Coach; the app does not independently verify physical presence.
 
-<details>
-<summary><strong>Coach · own the desk</strong></summary>
+## Roles and permissions
 
-Create an independent academy or request to join one. The owner configures offered sports, approves Coach accounts, and can transfer ownership. Coaches manage their assigned sports, players, attendance, matches, and access requests. Football fixtures can also store a starting lineup of up to eleven players.
-</details>
+| Role | Capabilities |
+| --- | --- |
+| Coach | Manage the academy and assigned sports, players, attendance, matches, access requests, and audit events. The academy owner can configure offered sports and transfer ownership. |
+| Player | See their own player record, attendance, match history, ratings, and active or withdrawn trial calls. Request additional academy sports for Coach approval. |
+| Scout | See eligible Ready players and their aggregate sport statistics; create or withdraw trial calls. Scouts do not administer attendance or matches. |
 
-<details>
-<summary><strong>Player · follow your progress and trial calls</strong></summary>
+New accounts must verify their email before signing in. Email verification does not approve a pending academy account. Coaches still review and approve access requests. Existing accounts without an email retain the username/password login flow.
 
-Your Coach adds you first. Join with the academy code, the Player ID from your record, and one or more sports offered by the academy. The linked account and each sport request need Coach approval before they become active. Players can review only their own attendance, match history, and aggregate ratings. The **Trials** tab shows active scout calls (shortlisted) and withdrawn calls. Leaving disables access while historical records remain with the academy.
-</details>
+## Technology and architecture
 
-<details>
-<summary><strong>Scout · see trial-ready players and call trials</strong></summary>
+- Next.js App Router, React, and TypeScript.
+- MongoDB Node.js driver for persistent MongoDB storage.
+- Nodemailer with Gmail SMTP for transactional email.
+- Node.js crypto scrypt for password hashing and HMAC for signed sessions and rate-limit keys.
+- Custom responsive CSS and Lucide icons.
 
-Request access to an academy. Once approved, see active players who meet the readiness rule, including aggregate score and average Coach rating per ready sport, without access to attendance sheets or match administration. A scout can call a Ready player for a trial in a ready sport and withdraw that call later. Coaches can see active and withdrawn calls in the Scouting view.
-</details>
+The browser sends same-origin JSON requests to Next.js route handlers. Handlers validate input, check the signed session and role, then read or mutate academy-scoped state. A small deployment stores the state in one revision-checked MongoDB document. Local development without MONGODB_URI uses data/excelrs.json. In-memory state is only a process cache; production requires MongoDB.
 
-## The rules behind readiness
-
-KhelGrid derives trial readiness separately for each sport:
-
-```text
-Ready = Present marks / closed sessions for that sport where the player was rostered >= 75%
-        AND the player has score rows in at least 2 played matches
-```
-
-A trial call is an in-app shortlist decision by a scout. It does not change attendance, matches, or readiness, and the player can see active and withdrawn calls in **Trials**. Coaches attest attendance and enter results and ratings; the app does not verify physical presence. Closing a session locks its sheet after every rostered player has a Present or Absent mark. To record a match, at least one player must belong to that sport and have been marked Present in a closed session on that date. Each score row requires a non-negative whole-number stat; a numeric Coach rating from 1 to 10 in half-point steps is optional. The final team score and outcome are optional; when supplied, both final scores and an outcome are required. Sport-specific result rules are not calculated by the app. A Coach can delete a match record; the audit history and separate attendance sheet remain.
-
-## Architecture
-
-```mermaid
+~~~mermaid
 flowchart LR
-  C[Coach · Player · Scout<br/>Responsive browser] -->|Same-origin JSON<br/>signed HttpOnly cookie| N[Next.js App Router<br/>UI + route handlers]
-  N --> V[Validation · role checks<br/>academy and sport scope]
-  V --> D[Academy domain records<br/>roster · sessions · matches · audit]
-  D -->|MONGODB_URI set| M[(MongoDB<br/>Atlas or local<br/>appState + rateLimits)]
-  D -->|Local development only| F[(data/excelrs.json)]
-```
+  B[Coach, Player, Scout browser] -->|same-origin JSON and session cookie| N[Next.js pages and API handlers]
+  N --> A[Validation, role checks, academy and sport scope]
+  A --> S[Application state]
+  S -->|MONGODB_URI set| M[(MongoDB appState and rateLimits)]
+  S -->|local development only| F[(data/excelrs.json)]
+  N -->|awaited SMTP messages| E[Gmail SMTP]
+~~~
 
-Each account and operational record carries an `academyId`. Server handlers select the signed-in user’s academy before reading or changing its data. Passwords are stored as salted scrypt hashes; session cookies are signed, `HttpOnly`, `SameSite=Lax`, and `Secure` in production. The small-deployment store keeps academy records in one revision-checked MongoDB `appState` document. Local development without a MongoDB URI uses an atomic JSON file.
+## Repository structure
 
-## Get on the field
+    app/
+      api/                 Route handlers for auth, academy, players, sessions, matches, trials, and audit
+      forgot-password/     Forgot-password page
+      reset-password/      Password-reset page
+      verify-email/         Email-verification page
+      globals.css          Dashboard and authentication styles
+      page.tsx             Login, signup, and dashboard
+      layout.tsx           App shell and metadata
+    lib/
+      auth.ts              Password checks, signed sessions, role helpers
+      email-auth.ts        Email validation, token lifecycle, email templates
+      email-link.ts        Canonical links and fragment-token extraction
+      http.ts              Same-origin and bounded JSON helpers
+      rate-limit.ts        Local and MongoDB-backed request limits
+      readiness.ts         Per-sport readiness calculations
+      smtp-email.ts        Reusable server-only Gmail SMTP sender
+      store.ts             MongoDB/local persistence and legacy normalization
+      types.ts             Academy and domain types
+    public/                KhelGrid marks and README artwork
+    scripts/               Optional local development scripts
+    tests/                 Node test-runner tests with mocked SMTP
 
-### Requirements
+## Requirements
 
-- Node.js 20 LTS or newer and npm
-- A MongoDB database (Atlas for shared or deployed use, or a local MongoDB) — optional for local-only development
-- The project source (a GitHub account is not required to run a downloaded copy)
-- A Vercel account only if you want to deploy there
+- Node.js 22.6 or newer and npm. The app's SMTP dependency supports Node.js 20+, but the repository test command uses Node's TypeScript stripping flag, available in Node.js 22.6+.
+- MongoDB is optional for local development. MongoDB Atlas is required for a persistent Vercel deployment.
+- A Gmail account that is permitted to use an App Password for SMTP if email delivery is needed.
 
-### Run locally without Atlas
+## Install and run locally
 
-```bash
-git clone <your-repository-url>
-cd <repository-folder>
-npm ci
-cp .env.example .env.local
-npm run dev
-```
+1. Clone or download the repository and open a terminal in its root directory.
+2. Install the locked dependencies:
 
-Open [http://localhost:3000](http://localhost:3000), choose **Create account → Coach → Create a new academy**, and set up your real academy. With `MONGODB_URI` blank, local records go to `data/excelrs.json`; this local file is ignored by Git and is not shared between machines. To clone a public repository, use its Git URL in place of `<your-repository-url>`; otherwise download the source and open a terminal in its project folder before running `npm ci`.
+    npm ci
 
-### Seed a local demo (optional, local-only)
+3. Create a local environment file by copying .env.example to .env.local. On PowerShell:
 
-The demo seed writes only to a local app instance and refuses any host other than `localhost` / `127.0.0.1`. The commands below also point the app at a local MongoDB, so the demo never uses the Atlas URI from `.env.local`.
+    Copy-Item .env.example .env.local
 
-In one terminal, start a local MongoDB (if installed):
+   Edit only your local .env.local. Do not commit it.
+4. For local use, leave MONGODB_URI blank to use the ignored JSON data file. For email delivery, configure the SMTP variables below.
+5. Start the development server:
 
-```bash
-mkdir -p data/mongo
-mongod --dbpath data/mongo --port 27018 --bind_ip 127.0.0.1
-```
+    npm run dev
 
-In another terminal, start the app against that local database. The inline variables override `.env.local`:
+6. Open http://localhost:3000.
 
-```bash
-MONGODB_URI=mongodb://127.0.0.1:27018/khelgrid_demo_local \
-MONGODB_DB=khelgrid_demo_local \
-SESSION_SECRET="$(openssl rand -base64 48)" \
-npm run dev -- -p 3200
-```
+Without MongoDB or SMTP configured, the app can be explored locally, but new accounts cannot complete email verification. Existing accounts without email can still use the existing username/password flow. Do not use real player data in an unprotected local environment.
 
-Then seed the demo:
+## Environment variables
 
-```bash
-node scripts/seed-demo.mjs
-```
+| Variable | Local development | Production |
+| --- | --- | --- |
+| MONGODB_URI | Blank selects local JSON storage; a local MongoDB URI is also supported. | Required. Use a MongoDB Atlas connection string and restrict Atlas network access. |
+| MONGODB_DB | Optional; defaults to excelrs. | Set the application database name. |
+| SESSION_SECRET | A local fallback exists for development only. | Required: unique, random, and at least 32 characters. Never use the sample placeholder. |
+| SMTP_HOST | smtp.gmail.com for Gmail. | smtp.gmail.com. |
+| SMTP_PORT | 465 for Gmail. | 465. |
+| SMTP_SECURE | true for Gmail. | true. |
+| SMTP_USER | Gmail mailbox used for SMTP authentication. | Gmail mailbox used for SMTP authentication. |
+| SMTP_PASS | Google App Password, when SMTP is enabled. | Google App Password stored as a server-side secret. |
+| EMAIL_FROM | Sender name and address permitted for that Gmail account. | Sender name and address permitted for that Gmail account. |
+| APP_URL | Canonical local origin, normally http://localhost:3000. | Canonical deployed HTTPS origin, without a path, query, or fragment. |
 
-Open [http://localhost:3200](http://localhost:3200) and sign in with the credentials printed by the seed. It creates an academy with Football, Cricket, Badminton, Athletics, and Basketball; Ready, Developing, and archived players; closed and open sessions; played and scheduled matches; a score-only match; active and pending scouts; a pending player; a pending coach; a pending sport request; and active and withdrawn trial calls so the player **Trials** tab has all three states to inspect.
+These variables are server-side. Do not add secrets to NEXT_PUBLIC_* variables.
 
-To rerun against the same local database, use `SEED_SUFFIX=2 node scripts/seed-demo.mjs` (or reset the local database). The seed prints the demo logins, Player IDs, and readiness table. Use the demo instead of the Atlas dev server, or run it from a separate copy of the project: two `next dev` processes in the same folder can conflict over `.next`.
+### Gmail App Password setup
 
-### Connect MongoDB Atlas
+1. Open Google Account settings and enable 2-Step Verification.
+2. Open the Google Account App Passwords page and create a password for this application.
+3. Put the generated value in SMTP_PASS and the matching Gmail address in SMTP_USER and EMAIL_FROM.
+4. Restart the local app after changing its environment.
 
-1. Create a database user with access only to the application database. Do not use an Atlas Admin account for the app.
-2. Add the development machine or deployment network to the Atlas Network Access list.
-3. Put the application connection string in `.env.local` as `MONGODB_URI`. URL-encode reserved characters in the password.
-4. Set `MONGODB_DB=excelrs` or another database name. Keep `.env.local` private; Git ignores it.
-5. Restart the app and check `/api/health` for database status.
+Google only offers App Passwords to eligible accounts. Managed work or school accounts, Advanced Protection, and some 2-Step Verification configurations may not offer the option. See [Google's App Password help](https://support.google.com/accounts/answer/185833).
 
-Example `.env.local` values:
+The app uses Gmail SMTP over TLS on port 465. Nodemailer verifies SMTP configuration before the first send and awaits each send in the API request. SMTP acceptance means the SMTP provider accepted the message for submission; it does not guarantee inbox placement or final delivery.
 
-```dotenv
-MONGODB_URI=mongodb+srv://<app-user>:<encoded-password>@<cluster-host>/<database>
-MONGODB_DB=excelrs
-SESSION_SECRET=<at-least-32-random-characters>
-```
+## Persistence and local development
 
-Generate a session secret with `openssl rand -base64 48`. The sample secret in `.env.example` is a placeholder and must never be used in production.
+When MONGODB_URI is unset outside production, the app uses data/excelrs.json and an in-process cache. This is for local development only. The JSON data file is not a shared store and must not be used for Vercel serverless deployments.
 
-### Deploy to Vercel
+With MONGODB_URI configured, the app stores its state in the appState collection and uses a shared rateLimits collection for production rate limiting. MongoDB writes use revision checks to avoid overwriting concurrent application-state updates. The current design stores academy state in one MongoDB document, so it has the MongoDB document-size limit and may serialize writes under load.
 
-Import the repository, then add `MONGODB_URI`, `MONGODB_DB`, and a unique `SESSION_SECRET` to the Vercel project’s **server-side** environment variables. Configure Atlas network access for the deployment, deploy, and verify `/api/health` before inviting users. Never expose these values as `NEXT_PUBLIC_*` variables. Login usernames are unique across the entire deployment because login currently accepts a username and password, not an academy selector.
+The legacy scripts/seed-demo.mjs is not compatible with the required email-verification signup flow. It now refuses to write data rather than leave a partially seeded workspace. Use the application signup and approval workflows for development until that script is redesigned.
 
-## Built with
+## Authentication and email workflows
 
-| Layer | Choice |
-|:--|:--|
-| Web app and API | Next.js 15 App Router, React 19, TypeScript |
-| Persistence | MongoDB Node.js driver (Atlas or local); local JSON fallback for development |
-| Authentication | Node.js crypto: scrypt password hashing and signed session cookies |
-| Interface | Custom responsive CSS, Lucide icons, generated academy QR codes |
+### Signup and login
 
-## Project map
+Signup requires a normalized, valid, case-insensitively unique email and a password from 8 to 128 characters. Passwords are hashed with scrypt. Existing username/password login remains in place. New accounts cannot sign in until their email is verified; their Coach approval state remains independently pending or active.
 
-```text
-app/
-  api/                 Authentication, academy, access, players,
-                       sessions, matches, trials, audit, health
-  globals.css          Responsive brutalist visual system
-  layout.tsx           Document metadata and app shell
-  page.tsx             Sign-up, sign-in, role-based workspace
-lib/
-  auth.ts              Password checks, signed sessions, permissions
-  http.ts              Same-origin and bounded JSON helpers
-  rate-limit.ts        Request limits
-  sports.ts            Canonical sport catalogue and date validation
-  readiness.ts         Per-sport readiness, score, and average-rating calculation
-  store.ts             MongoDB/local persistence and legacy normalization
-  types.ts             Academy and domain record types
-public/
-  khelgrid-mark.svg    Transparent sports mark
-scripts/
-  seed-demo.mjs        Optional local-only demo data seed
-```
+### Email verification
 
-## Before real-world rollout
+The server creates a cryptographically random token and stores only its hash with a 24-hour expiry. The link places the token in the URL fragment. The page reads the fragment in the browser, removes it from the address bar, then sends it to the verification API with POST. The token is single-use. Resend requests are limited independently by IP and normalized email.
 
-KhelGrid has multi-academy workflows, but this is an early small-deployment build. Academies currently share one MongoDB document, which imposes a 16 MB document limit and serializes writes. A larger service should use academy-scoped collections and indexes, transaction and migration tooling, backups, monitoring, and load-tested rate limiting.
+### Password recovery
 
-There is no password reset, MFA, email delivery, automated test suite, CI workflow, full data export, guardian-consent flow, complete sport-specific scoring engine, trial scheduling, trial acceptance/decline flow, or external trial notification. Attendance, results, and ratings are coach-entered. The audit log retains up to 5,000 events in the state document, and the Coach endpoint returns up to the latest 200 events within the Coach’s academy and sport permissions. Since player records include minors’ names and ages, establish consent, retention, access, and incident procedures before using real data at scale.
+Forgot-password requests return the same generic response for unknown, unverified, and eligible verified addresses. A minimum response duration reduces obvious timing differences, but synchronous SMTP latency means timing cannot be made identical. Only verified email addresses receive reset links. Reset tokens are random, hashed in storage, single-use, and expire after 30 minutes. A successful reset uses scrypt, increments sessionVersion to invalidate prior sessions, and requires the user to sign in again.
 
-**Credential hygiene:** If a database credential has ever been exposed, rotate it in Atlas before using the database or deploying. Use a dedicated database user, store secrets only in local environment files or the host’s encrypted settings, and never commit them.
+Email action tokens are not stored in browser storage. Pages use a no-referrer policy. SMTP exceptions are reduced to safe errors and sanitized diagnostics; credentials, email addresses, and token values are not intentionally logged.
+
+## API route reference
+
+All request bodies are same-origin JSON and bounded by the shared request helper. Protected routes require an active signed-in user and check role, academy, and where applicable sport scope.
+
+| Method and path | Purpose |
+| --- | --- |
+| POST /api/auth/signup | Create Coach, Player, or Scout account; request academy or sport access; send verification email. |
+| POST /api/auth/login | Username/password login, pending-account and email-verification checks. |
+| POST /api/auth/logout | Clear the session cookie. |
+| GET /api/auth/me | Return the current public user. |
+| POST /api/auth/verify-email | Consume a verification token. |
+| POST /api/auth/resend-verification | Rate-limited verification email request. |
+| POST /api/auth/forgot-password | Generic password-recovery request. |
+| POST /api/auth/reset-password | Validate a reset token and replace the password. |
+| GET /api/health | Report application storage availability without returning database credentials. |
+| GET /api/bootstrap | Return a role-scoped dashboard snapshot. |
+| GET, PATCH /api/academy | Read academy details or update owner-managed offered sports. |
+| PATCH /api/academy/owner | Transfer academy ownership to an active Coach. |
+| POST /api/academy/leave | Leave an academy subject to owner and active-Coach safeguards. |
+| GET /api/audit | Return permitted academy audit events to Coaches. |
+| POST /api/players | Create a player record (Coach). |
+| PATCH /api/players/[id] | Archive or restore a player (Coach). |
+| POST /api/players/[id]/sports | Request sports for the signed-in Player. |
+| PATCH /api/players/[id]/sports | Approve or decline player sport requests (Coach). |
+| POST /api/sessions | Open an attendance session (Coach). |
+| PATCH /api/sessions/[id] | Update attendance or close a session (Coach). |
+| POST /api/matches | Schedule a match (Coach). |
+| PATCH, DELETE /api/matches/[id] | Update or delete an academy match (Coach). |
+| POST /api/trials | Call an eligible player for a trial (Scout). |
+| DELETE /api/trials/[id] | Withdraw the Scout's trial call. |
+| PATCH /api/users/[id] | Approve or decline an academy access request (Coach). |
+
+## Tests and production build
+
+Run the automated checks from the repository root:
+
+    npm test
+    npm exec tsc -- --noEmit
+    npm run build
+    git diff --check
+
+The current tests cover email validation and normalization, rate-limit keying, email-token extraction and history cleanup, generic forgot-password response shape, token expiry and reuse, legacy accounts, reset/session invalidation, and mocked SMTP configuration and response handling. They do not yet provide route-level or full integration coverage for signup approvals, the complete verification/reset HTTP flows, MongoDB conflict retries, or cross-instance production rate limiting. No automated test sends real email.
+
+## Vercel deployment
+
+1. Create a MongoDB Atlas database and a dedicated application user. Restrict database network access to the deployment environment as appropriate.
+2. Create or select a Vercel project and connect the repository.
+3. In the Vercel project settings, add the production environment variables listed above. Store SMTP_PASS, SESSION_SECRET, and MONGODB_URI as server-side secrets. Do not use NEXT_PUBLIC_* for them.
+4. Set APP_URL to the canonical HTTPS origin users will visit. Do not use localhost, a preview URL, a trailing path, query, or fragment for production.
+5. Set SMTP_HOST, SMTP_PORT, and SMTP_SECURE to the required Gmail TLS settings; set SMTP_USER and EMAIL_FROM to the permitted Gmail sender.
+6. Deploy the feature through your normal review process, then check /api/health and test signup, verification, resend, recovery, reset, login, and role-scoped API access using non-production accounts.
+7. Confirm the Gmail account accepted the message and separately confirm recipient inbox delivery. SMTP acceptance alone is not proof of delivery.
+
+Vercel environment changes apply to new deployments, so deploy again after changing configuration. See [Vercel's environment-variable guide](https://vercel.com/docs/environment-variables).
+
+## Security and production limitations
+
+- Production requires MongoDB; the filesystem fallback is not used as persistent serverless storage.
+- Rate limiting is MongoDB-backed in production and process-local during local development.
+- Email sending is synchronous with the API request. Provider failures are handled safely, but network outages can delay requests.
+- Forgot-password response timing is generic with a minimum duration, but provider latency can remain observable.
+- SMTP acceptance is not proof of delivery or inbox placement.
+- There is no MFA, CI workflow, full data export, guardian-consent workflow, or external trial notification.
+- Academies share one state document, which is appropriate only for small deployments. Backups, monitoring, retention, consent, and incident procedures need to be planned before using real records at scale. Player records can contain minors' names and ages.
+
+## Development and contribution
+
+Keep authentication, database, and authorization changes covered by tests. Use mocked SMTP transports in automated tests; do not send real messages from the test suite. Keep secrets in local environment files or deployment settings, and never commit .env.local, real credentials, personal player exports, or generated local data.
+
+Before proposing a change, run the tests, TypeScript check, production build, and diff check. Preserve the established KhelGrid UI and role workflows unless a change explicitly requires otherwise.
 
 ## License
 

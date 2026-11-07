@@ -14,7 +14,7 @@
  */
 
 const BASE = (process.env.SEED_BASE || "http://localhost:3200").replace(/\/$/, "");
-const PASSWORD = "Passw0rd!";
+const PASSWORD = process.env.SEED_PASSWORD || "";
 const rawSuffix = String(process.env.SEED_SUFFIX || "").trim().toLowerCase();
 const suffix = rawSuffix ? `_${rawSuffix.replace(/[^a-z0-9._-]/g, "")}` : "";
 const academyName = `KhelGrid Demo Academy${suffix ? ` ${suffix.slice(1)}` : ""}`;
@@ -30,6 +30,15 @@ if (!new Set(["localhost", "127.0.0.1", "::1", "[::1]"]).has(parsed.hostname)) {
   console.error(`Refusing to seed ${BASE}. This script only writes to a local app instance.`);
   process.exit(1);
 }
+
+const healthResponse = await fetch(`${BASE}/api/health`, { cache: "no-store" }).catch(() => null);
+const health = healthResponse?.ok ? await healthResponse.json().catch(() => null) : null;
+if (health?.localOnly !== true) {
+  console.error("Refusing to seed: the local app must use local JSON storage or a loopback MongoDB instance.");
+  process.exit(1);
+}
+console.error("This legacy demo seeder predates required email verification and cannot complete signup safely. No demo records were written.");
+process.exit(1);
 
 const cookies = new Map();
 
@@ -499,15 +508,6 @@ eq(coachData.pendingSportRequests[0].playerId, aarav.id, "the pending sport requ
 section("Demo seed complete");
 console.log(`Local app: ${BASE}`);
 console.log(`Academy: ${academyName} (${academyCode})`);
-console.log(`Coach (owner): ${coachUser} / ${PASSWORD}`);
-console.log(`Scout (active): ${scoutUser} / ${PASSWORD}`);
-console.log(`Scout (pending): ${pendingScoutUser} / ${PASSWORD}`);
-console.log(`Coach (pending): ${pendingCoachUser} / ${PASSWORD}`);
-console.log(`Player (Ready, Aarav): ${aaravUser} / ${PASSWORD} · Player ID ${aarav.id}`);
-console.log(`Player (Developing, Priya): ${priyaUser} / ${PASSWORD} · Player ID ${priya.id}`);
-console.log(`Player (absences, Rohit): ${rohitUser} / ${PASSWORD} · Player ID ${rohit.id}`);
-console.log(`Player (withdrawn trial, Suman): ${sumanUser} / ${PASSWORD} · Player ID ${suman.id}`);
-console.log(`Player (pending, Vikram): ${pendingPlayerUser} / ${PASSWORD} · Player ID ${vikram.id}`);
 console.log(`Archived player: Rahul Munda (${rahul.id}) — restore from Players`);
 console.log("Open session: Football 2026-11-03 — mark everyone and close it to score the scheduled fixture.");
 console.log("Scheduled fixtures: Football 2026-11-03 vs Deoghar Dynamos; Cricket 2026-11-04 vs Ranchi Royals.");

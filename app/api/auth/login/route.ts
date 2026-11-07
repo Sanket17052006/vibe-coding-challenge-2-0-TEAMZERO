@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
   if (!user || user.status !== "active" || !(await verifyPassword(password, user.passwordSalt, user.passwordHash))) {
     return NextResponse.json({ error: "Username or password is incorrect. If your account is pending, ask the coach to approve it." }, { status: 401, headers: { "Cache-Control": "no-store" } });
   }
+  if (user.email && !user.emailVerifiedAt) return NextResponse.json({ error: "Verify your email before signing in. You can request another verification email from the sign-in page." }, { status: 403, headers: { "Cache-Control": "no-store" } });
   await setLoginCookie(user);
   return NextResponse.json({ user: publicUser(user) });
   } catch (error) { return errorResponse(error); }
