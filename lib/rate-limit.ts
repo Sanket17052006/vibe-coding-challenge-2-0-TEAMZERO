@@ -1,5 +1,5 @@
-import type { NextRequest } from "next/server";
 import { createHmac } from "node:crypto";
+import type { NextRequest } from "next/server";
 
 type RateBucket = { _id: string; count: number; expiresAt: Date };
 const localBuckets = new Map<string, RateBucket>();

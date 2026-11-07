@@ -12,3 +12,7 @@ export function isISODate(value: string): boolean {
   const date = new Date(`${value}T00:00:00.000Z`);
   return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
 }
+
+export function isLocalTime(value: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}

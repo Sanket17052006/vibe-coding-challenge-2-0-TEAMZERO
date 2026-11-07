@@ -4,15 +4,15 @@ import { requireRole } from "../../../lib/auth";
 import { badRequest, errorResponse, readJsonBody } from "../../../lib/http";
 import { SPORTS } from "../../../lib/sports";
 import { rateLimit } from "../../../lib/rate-limit";
+import { resolveAcademyIdentity } from "../../../lib/single-academy";
 export async function GET(request: NextRequest) {
   try {
-  const limited = await rateLimit(request, "academy-lookup", "", 60, 60 * 60 * 1000);
+  const limited = await rateLimit(request, "academy-info", "", 60, 60 * 60 * 1000);
   if (limited) return limited;
-  const code = String(request.nextUrl.searchParams.get("code") || "").trim().toUpperCase();
   const state = await getStore();
-  const academy = state.academies.find((entry) => entry.code === code);
-  if (!code || !academy) return NextResponse.json({ error: "No academy found for that code." }, { status: 404 });
-  return NextResponse.json({ academy: { name: academy.name, location: academy.location, sports: academy.sports ?? [] } });
+  const identity = resolveAcademyIdentity(state);
+  const academy = state.academies.find((entry) => entry.id === identity.id);
+  return NextResponse.json({ academy: { name: identity.name, location: identity.location, sports: academy?.sports ?? [] } }, { headers: { "Cache-Control": "public, max-age=60" } });
   } catch (error) { return errorResponse(error); }
 }
 

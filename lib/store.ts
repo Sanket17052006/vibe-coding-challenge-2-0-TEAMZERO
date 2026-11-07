@@ -2,10 +2,10 @@ import { randomBytes, randomUUID, scrypt as scryptCallback } from "node:crypto";
 import { promisify } from "node:util";
 import { MongoClient } from "mongodb";
 import { AuditEvent, Store } from "./types";
-import { isLocalMongoUri } from "./local-mongo";
+import { assertSingleAcademyState } from "./single-academy";
+export { isLocalMongoUri } from "./local-mongo";
 import { readFile, mkdir, writeFile, rename } from "node:fs/promises";
 import path from "node:path";
-export { isLocalMongoUri } from "./local-mongo";
 
 const scrypt = promisify(scryptCallback);
 const DATA_FILE = path.join(process.cwd(), "data", "excelrs.json");
@@ -37,7 +37,7 @@ function normalizeStore(value: unknown): Store {
     if (foundingCoach) foundingCoach.isOwner = true;
   }
   const normalizedAcademies = academies.map((academy) => ({ ...academy, sports: Array.isArray(academy.sports) ? academy.sports : [...new Set(players.filter((player) => player.academyId === academy.id).flatMap((player) => player.sports ?? []))] }));
-  return {
+  const normalized = {
     academies: normalizedAcademies,
     users,
     players,
@@ -47,6 +47,8 @@ function normalizeStore(value: unknown): Store {
     auditEvents: Array.isArray(raw.auditEvents) ? raw.auditEvents.map((event) => ({ ...event, academyId: event.academyId ?? legacyAcademyId ?? "" })) : [],
     authTokens: Array.isArray(raw.authTokens) ? raw.authTokens : [],
   } as Store;
+  assertSingleAcademyState(normalized);
+  return normalized;
 }
 
 async function getMongoClient() {
