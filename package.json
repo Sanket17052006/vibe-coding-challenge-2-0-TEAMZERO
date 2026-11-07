@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --experimental-strip-types --test tests/*.test.mjs"
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "seed:demo": "node --experimental-strip-types scripts/seed-demo-accounts.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

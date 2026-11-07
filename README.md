@@ -39,6 +39,18 @@ A trial call is an in-app shortlist decision. It does not schedule an event or s
 
 New accounts must verify their email before signing in. Email verification does not approve a pending academy account. Coaches still review and approve access requests. Existing accounts without an email retain the username/password login flow.
 
+### Demo accounts
+
+The sign-in screen offers **Continue as Coach**, **Continue as Player**, and **Continue as Scout**. These are real accounts in one shared academy (`EXR-2024`, "KhelGrid Premier Academy"), so actions taken by one role are visible to the others. The demo password is `demo123`.
+
+| Login | Role | Player record |
+| --- | --- | --- |
+| `coach.jan` | Coach / academy owner | — |
+| `player.aarav` | Player | `DEMO-001` (Football) |
+| `scout.rohan` | Scout | — |
+
+When MongoDB is configured, add the demo academy with `npm run seed:demo` (idempotent and additive). When MongoDB is unset locally, the demo dataset is written to `data/excelrs.json` on first load. Demo data lives in `lib/demo-data.ts`, which is bundled so it also works on serverless deployments.
+
 ## Technology and architecture
 
 - Next.js App Router, React, and TypeScript.
@@ -144,7 +156,7 @@ When MONGODB_URI is unset outside production, the app uses data/excelrs.json and
 
 With MONGODB_URI configured, the app stores its state in the appState collection and uses a shared rateLimits collection for production rate limiting. MongoDB writes use revision checks to avoid overwriting concurrent application-state updates. The current design stores academy state in one MongoDB document, so it has the MongoDB document-size limit and may serialize writes under load.
 
-The legacy scripts/seed-demo.mjs is not compatible with the required email-verification signup flow. It now refuses to write data rather than leave a partially seeded workspace. Use the application signup and approval workflows for development until that script is redesigned.
+The legacy scripts/seed-demo.mjs is not compatible with the required email-verification signup flow. It now refuses to write data rather than leave a partially seeded workspace. Use `npm run seed:demo` (`scripts/seed-demo-accounts.mjs`) to add the bundled demo academy to MongoDB; it merges demo records by id without deleting existing data.
 
 ## Authentication and email workflows
 

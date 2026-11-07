@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 import { MongoClient } from "mongodb";
 import { AuditEvent, Store } from "./types";
 import { isLocalMongoUri } from "./local-mongo";
+import { cloneDemoStore } from "./demo-data";
 import { readFile, mkdir, writeFile, rename } from "node:fs/promises";
 import path from "node:path";
 export { isLocalMongoUri } from "./local-mongo";
@@ -76,9 +77,9 @@ export async function getStore(): Promise<Store> {
       if (typeof doc.revision !== "number") await col.updateOne({ _id: "main", revision: { $exists: false } }, { $set: { revision: 0 } });
       return normalizeStore(doc.state);
     }
-    const empty = await createEmptyStore();
+    const demo = cloneDemoStore();
     try {
-      await col.updateOne({ _id: "main" }, { $setOnInsert: { state: empty, revision: 0 } }, { upsert: true });
+      await col.updateOne({ _id: "main" }, { $setOnInsert: { state: demo, revision: 0 } }, { upsert: true });
     } catch (error) {
       if (!(error && typeof error === "object" && "code" in error && error.code === 11000)) throw error;
     }
@@ -89,13 +90,13 @@ export async function getStore(): Promise<Store> {
   if (memoryStore) return memoryStore;
   try {
     memoryStore = normalizeStore(JSON.parse(await readFile(DATA_FILE, "utf8")) as unknown);
+    return memoryStore;
   } catch (error) {
     if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) throw new Error("Could not read local KhelGrid data. The data file may be damaged; it was left untouched.");
-    const emptyStore = await createEmptyStore();
-    await persistStore(emptyStore);
-    return emptyStore;
+    const demo = cloneDemoStore();
+    await persistStore(demo);
+    return demo;
   }
-  return memoryStore;
 }
 
 export async function persistStore(state: Store) {
